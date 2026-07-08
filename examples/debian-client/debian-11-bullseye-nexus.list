@@ -1,0 +1,3 @@
+deb http://nexus.local:8081/repository/apt-debian-bullseye bullseye main contrib non-free
+deb http://nexus.local:8081/repository/apt-debian-bullseye-updates bullseye-updates main contrib non-free
+deb http://nexus.local:8081/repository/apt-debian-bullseye-security bullseye-security main contrib non-free

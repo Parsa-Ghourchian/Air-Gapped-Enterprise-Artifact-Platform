@@ -1,0 +1,153 @@
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE}
+    container_name: airgap-traefik
+    restart: unless-stopped
+    command:
+      # Enable Traefik dashboard for local lab usage
+      - --api.dashboard=true
+      - --api.insecure=true
+
+      # Enable Docker provider
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+
+      # HTTP entrypoint
+      - --entrypoints.web.address=:80
+
+      # Prometheus metrics
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addRoutersLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+
+      # Basic logs
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      # Read-only Docker socket access for Traefik service discovery
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - platform
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.local`)
+      - traefik.http.routers.traefik.entrypoints=web
+      - traefik.http.routers.traefik.service=api@internal
+
+  nexus:
+    image: ${NEXUS_IMAGE}
+    container_name: airgap-nexus
+    restart: unless-stopped
+    environment:
+      # Tune JVM for local lab usage. Increase this on production servers.
+      INSTALL4J_ADD_VM_PARAMS: "-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g"
+    ports:
+      # Nexus web UI and REST API
+      - "8081:8081"
+
+      # Nexus Docker registry connectors
+      - "5000:5000" # docker-hosted
+      - "5001:5001" # docker-proxy
+      - "5002:5002" # docker-group
+    volumes:
+      - ./data/nexus:/nexus-data
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/service/rest/v1/status >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nexus.rule=Host(`nexus.local`)
+      - traefik.http.routers.nexus.entrypoints=web
+      - traefik.http.services.nexus.loadbalancer.server.port=8081
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    container_name: airgap-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus:/prometheus
+    networks:
+      - platform
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.local`)
+      - traefik.http.routers.prometheus.entrypoints=web
+      - traefik.http.services.prometheus.loadbalancer.server.port=9090
+
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    container_name: airgap-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: ""
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - platform
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.local`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE}
+    container_name: airgap-node-exporter
+    restart: unless-stopped
+    command:
+      # Expose host OS metrics from inside the container
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - platform
+
+  cadvisor:
+    image: ${CADVISOR_IMAGE}
+    container_name: airgap-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    ports:
+      - "8082:8080"
+    volumes:
+      # cAdvisor needs read-only access to host and Docker runtime paths
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks:
+      - platform
+
+networks:
+  platform:
+    name: airgap-artifacts-platform
+    driver: bridge

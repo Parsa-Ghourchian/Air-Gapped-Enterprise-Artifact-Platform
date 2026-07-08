@@ -1,0 +1,7 @@
+# distro	codename	image	components
+ubuntu	noble	ubuntu:24.04	main universe multiverse restricted
+ubuntu	plucky	ubuntu:25.04	main universe multiverse restricted
+ubuntu	resolute	ubuntu:26.04	main universe multiverse restricted
+debian	bullseye	debian:11	main contrib non-free
+debian	bookworm	debian:12	main contrib non-free non-free-firmware
+debian	trixie	debian:13	main contrib non-free non-free-firmware

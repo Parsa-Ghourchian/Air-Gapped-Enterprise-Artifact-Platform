@@ -1,0 +1,3 @@
+deb http://nexus.local:8081/repository/apt-ubuntu-noble noble main universe multiverse restricted
+deb http://nexus.local:8081/repository/apt-ubuntu-noble-updates noble-updates main universe multiverse restricted
+deb http://nexus.local:8081/repository/apt-ubuntu-noble-security noble-security main universe multiverse restricted

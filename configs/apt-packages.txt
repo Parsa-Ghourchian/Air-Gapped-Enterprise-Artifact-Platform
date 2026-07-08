@@ -1,0 +1,5 @@
+curl
+wget
+nginx
+python3-pip
+net-tools

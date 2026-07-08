@@ -1,0 +1,3 @@
+deb http://nexus.local:8081/repository/apt-debian-bookworm bookworm main contrib non-free non-free-firmware
+deb http://nexus.local:8081/repository/apt-debian-bookworm-updates bookworm-updates main contrib non-free non-free-firmware
+deb http://nexus.local:8081/repository/apt-debian-bookworm-security bookworm-security main contrib non-free non-free-firmware

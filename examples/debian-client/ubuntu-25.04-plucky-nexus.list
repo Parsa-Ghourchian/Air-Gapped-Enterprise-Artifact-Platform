@@ -1,0 +1,4 @@
+# Ubuntu 25.04 is EOL. This points to Nexus proxies backed by old-releases.ubuntu.com.
+deb http://nexus.local:8081/repository/apt-ubuntu-plucky plucky main universe multiverse restricted
+deb http://nexus.local:8081/repository/apt-ubuntu-plucky-updates plucky-updates main universe multiverse restricted
+deb http://nexus.local:8081/repository/apt-ubuntu-plucky-security plucky-security main universe multiverse restricted

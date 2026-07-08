@@ -1,0 +1,86 @@
+services:
+  portal:
+    build:
+      context: ./portal
+    image: ${PORTAL_IMAGE}
+    container_name: airgap-portal
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_WORKSPACE: /workspace
+      PORTAL_DB_PATH: /workspace/data/portal/portal.db
+    ports:
+      - "8095:8095"
+    volumes:
+      - ${HOST_PROJECT_ROOT}:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - platform
+    depends_on:
+      - nexus
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/health', timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 768m
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.portal.rule=Host(`portal.local`) || Host(`artifact.local`)
+      - traefik.http.routers.portal.entrypoints=web
+      - traefik.http.services.portal.loadbalancer.server.port=8095
+
+  nexus:
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  traefik:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  prometheus:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  grafana:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cadvisor:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  node-exporter:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

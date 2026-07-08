@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nexus Air-Gapped Deployment Portal V4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <section id="loginView" class="login-shell">
+    <div class="login-card">
+      <div class="logo-mark">N</div>
+      <p class="eyebrow">Final Enterprise Edition</p>
+      <h1>Nexus Air-Gapped Deployment Portal</h1>
+      <p class="muted">
+        Build, verify, transfer and deploy offline bundles through a controlled,
+        auditable and production-ready web portal.
+      </p>
+
+      <form id="loginForm" class="form-stack">
+        <input id="loginUser" placeholder="Username" autocomplete="username" required>
+        <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Enter Portal</button>
+      </form>
+
+      <div id="loginError" class="error-text"></div>
+    </div>
+  </section>
+
+  <section id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo-mark small">N</div>
+        <div>
+          <strong>Nexus Portal</strong>
+          <span>V4 Final</span>
+        </div>
+      </div>
+
+      <nav>
+        <button class="nav active" data-tab="dashboard">Dashboard</button>
+        <button class="nav" data-tab="wizard">Deployment Wizard</button>
+        <button class="nav" data-tab="servers">Target Servers</button>
+        <button class="nav" data-tab="history">History & Reports</button>
+        <button class="nav" data-tab="audit">Audit Log</button>
+        <button class="nav" data-tab="storage">Storage Guard</button>
+      </nav>
+
+      <button id="logoutBtn" class="ghost">Logout</button>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Enterprise Air-Gapped Artifact Control Plane</p>
+          <h2 id="pageTitle">Dashboard</h2>
+        </div>
+        <div class="status-pill">Production-ready</div>
+      </header>
+
+      <section id="dashboard" class="tab">
+        <div class="stats-grid">
+          <div class="stat-card"><span>Servers</span><strong id="statServers">0</strong></div>
+          <div class="stat-card"><span>Jobs</span><strong id="statJobs">0</strong></div>
+          <div class="stat-card"><span>Running</span><strong id="statRunning">0</strong></div>
+          <div class="stat-card"><span>Success</span><strong id="statSuccess">0</strong></div>
+          <div class="stat-card"><span>Failed</span><strong id="statFailed">0</strong></div>
+        </div>
+
+        <div class="hero-panel">
+          <h3>One portal. Full offline delivery workflow.</h3>
+          <p>
+            Operators select artifacts, run SSH preflight, pass a security gate,
+            build a verified bundle, transfer it to the target server and get
+            a complete deployment report with rollback guidance.
+          </p>
+          <div class="hero-actions">
+            <a href="http://nexus.local" target="_blank">Open Nexus</a>
+            <a href="http://grafana.local" target="_blank">Open Grafana</a>
+            <a href="http://prometheus.local" target="_blank">Open Prometheus</a>
+            <a href="http://traefik.local:8080" target="_blank">Open Traefik</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="wizard" class="tab hidden">
+        <div class="wizard-stepper">
+          <button class="step active" data-step="1"><b>1</b><span>Target</span></button>
+          <button class="step" data-step="2"><b>2</b><span>Preflight</span></button>
+          <button class="step" data-step="3"><b>3</b><span>Artifacts</span></button>
+          <button class="step" data-step="4"><b>4</b><span>Security</span></button>
+          <button class="step" data-step="5"><b>5</b><span>Deploy</span></button>
+        </div>
+
+        <div id="wizardStep1" class="wizard-page">
+          <div class="panel">
+            <h3>Step 1 — Select Target Server</h3>
+            <p class="muted">Choose a saved target or enter an ad-hoc server. Password is never stored.</p>
+
+            <div class="form-grid">
+              <select id="deployServer"></select>
+              <input id="deployHost" placeholder="Ad-hoc IP / Hostname">
+              <input id="deployPort" placeholder="SSH Port" value="22">
+              <input id="deployUser" placeholder="Username">
+              <input id="deployPassword" type="password" placeholder="SSH Password - not stored">
+              <input id="deployKey" placeholder="SSH key path, e.g. /workspace/secrets/airgap_deploy_key">
+              <input id="deployRemoteDir" placeholder="Remote dir" value="/tmp/airgap-deployments">
+              <label class="check"><input id="deployEnabled" type="checkbox" checked> Deploy to server after bundle</label>
+              <label class="check"><input id="useSudo" type="checkbox"> Use sudo for Docker commands</label>
+            </div>
+
+            <div class="wizard-actions">
+              <button class="primary" data-next="2">Continue to Preflight</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="wizardStep2" class="wizard-page hidden">
+          <div class="panel">
+            <h3>Step 2 — SSH Preflight Check</h3>
+            <p class="muted">Validate server readiness before creating or transferring any bundle.</p>
+            <button id="runPreflightBtn" class="primary">Run Preflight</button>
+            <div id="preflightResult" class="result-grid"></div>
+
+            <div class="wizard-actions">
+              <button class="ghost" data-prev="1">Back</button>
+              <button class="primary" data-next="3">Continue to Artifacts</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="wizardStep3" class="wizard-page hidden">
+          <div class="deploy-layout">
+            <div class="panel">
+              <h3>Step 3 — Select Artifacts</h3>
+
+              <div class="artifact-block">
+                <div class="artifact-head">
+                  <strong>Docker Images</strong>
+                  <span>from config + Nexus hosted</span>
+                </div>
+                <div id="dockerArtifacts" class="artifact-list"></div>
+                <textarea id="dockerManual" placeholder="Manual Docker images, one per line"></textarea>
+              </div>
+
+              <div class="artifact-block">
+                <div class="artifact-head">
+                  <strong>Python Packages</strong>
+                  <span>from config + Nexus PyPI</span>
+                </div>
+                <div id="pythonArtifacts" class="artifact-list"></div>
+                <textarea id="pythonManual" placeholder="requests==2.32.4"></textarea>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Debian / Ubuntu Packages</h3>
+
+              <select id="aptTarget">
+                <option value="ubuntu-noble">Ubuntu 24.04 Noble</option>
+                <option value="ubuntu-plucky">Ubuntu 25.04 Plucky</option>
+                <option value="ubuntu-resolute">Ubuntu 26.04 Resolute</option>
+                <option value="debian-bullseye">Debian 11 Bullseye</option>
+                <option value="debian-bookworm">Debian 12 Bookworm</option>
+                <option value="debian-trixie">Debian 13 Trixie</option>
+              </select>
+
+              <div id="aptArtifacts" class="artifact-list"></div>
+              <textarea id="aptManual" placeholder="curl&#10;wget&#10;net-tools"></textarea>
+
+              <div class="wizard-actions">
+                <button class="ghost" data-prev="2">Back</button>
+                <button class="primary" data-next="4">Continue to Security Gate</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="wizardStep4" class="wizard-page hidden">
+          <div class="panel">
+            <h3>Step 4 — Security Gate</h3>
+            <p class="muted">Policy checks run before build/deploy. Critical policy violations block the job.</p>
+
+            <div class="inline-checks">
+              <label class="check"><input id="runDockerLoad" type="checkbox" checked> Remote docker load</label>
+              <label class="check"><input id="setupPython" type="checkbox" checked> Prepare Python wheels</label>
+              <label class="check"><input id="setupApt" type="checkbox" checked> Prepare APT mini repo</label>
+            </div>
+
+            <textarea id="extraCommands" class="code-area" placeholder="Extra remote commands, one per line"></textarea>
+
+            <button id="runSecurityBtn" class="primary">Run Security Gate</button>
+            <div id="securityResult" class="result-grid"></div>
+
+            <div class="wizard-actions">
+              <button class="ghost" data-prev="3">Back</button>
+              <button class="primary" data-next="5">Continue to Deploy</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="wizardStep5" class="wizard-page hidden">
+          <div class="panel">
+            <h3>Step 5 — Build, Transfer & Deploy</h3>
+            <p class="muted">
+              The portal will create a verified bundle, generate manifest/checksums,
+              transfer the archive, execute deployment steps and produce HTML/PDF reports.
+            </p>
+
+            <div id="bundleSummary" class="summary-box"></div>
+
+            <button id="createJobBtn" class="primary large">Create Bundle & Start Job</button>
+            <div id="jobCreateResult" class="mini-result"></div>
+
+            <div class="wizard-actions">
+              <button class="ghost" data-prev="4">Back</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="servers" class="tab hidden">
+        <div class="grid-2">
+          <div class="panel">
+            <h3>Add Target Server</h3>
+            <form id="serverForm" class="form-grid">
+              <input id="serverName" placeholder="Server name, e.g. prod-app-01" required>
+              <input id="serverHost" placeholder="IP / Hostname" required>
+              <input id="serverPort" placeholder="SSH Port" value="22" required>
+              <input id="serverUser" placeholder="Username" required>
+              <select id="serverAuth">
+                <option value="password">Password at runtime</option>
+                <option value="key">SSH key path</option>
+              </select>
+              <input id="serverKey" placeholder="/workspace/secrets/deploy_key">
+              <button class="primary" type="submit">Save Server</button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h3>Saved Servers</h3>
+            <div id="serversList" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="history" class="tab hidden">
+        <div class="panel">
+          <div class="section-head">
+            <h3>Job History</h3>
+            <button id="refreshJobsBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="jobsList" class="jobs"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Job Logs</h3>
+          <pre id="jobLogs" class="log-box">Select a job to view logs.</pre>
+        </div>
+      </section>
+
+      <section id="audit" class="tab hidden">
+        <div class="panel">
+          <div class="section-head">
+            <h3>Audit Log</h3>
+            <button id="refreshAuditBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="auditList" class="audit-list"></div>
+        </div>
+      </section>
+
+      <section id="storage" class="tab hidden">
+        <div class="panel">
+          <div class="section-head">
+            <h3>Storage Guard & Cleanup</h3>
+            <button id="refreshStorageBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="storageStats" class="stats-grid small"></div>
+          <button id="cleanupBtn" class="primary">Run Cleanup Policy</button>
+          <div id="cleanupResult" class="mini-result"></div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

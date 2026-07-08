@@ -1,0 +1,19 @@
+# name	remote_url	distribution
+apt-ubuntu-noble	http://archive.ubuntu.com/ubuntu/	noble
+apt-ubuntu-noble-updates	http://archive.ubuntu.com/ubuntu/	noble-updates
+apt-ubuntu-noble-security	http://security.ubuntu.com/ubuntu/	noble-security
+apt-ubuntu-plucky	http://old-releases.ubuntu.com/ubuntu/	plucky
+apt-ubuntu-plucky-updates	http://old-releases.ubuntu.com/ubuntu/	plucky-updates
+apt-ubuntu-plucky-security	http://old-releases.ubuntu.com/ubuntu/	plucky-security
+apt-ubuntu-resolute	http://archive.ubuntu.com/ubuntu/	resolute
+apt-ubuntu-resolute-updates	http://archive.ubuntu.com/ubuntu/	resolute-updates
+apt-ubuntu-resolute-security	http://security.ubuntu.com/ubuntu/	resolute-security
+apt-debian-bullseye	http://deb.debian.org/debian/	bullseye
+apt-debian-bullseye-updates	http://deb.debian.org/debian/	bullseye-updates
+apt-debian-bullseye-security	http://security.debian.org/debian-security/	bullseye-security
+apt-debian-bookworm	http://deb.debian.org/debian/	bookworm
+apt-debian-bookworm-updates	http://deb.debian.org/debian/	bookworm-updates
+apt-debian-bookworm-security	http://security.debian.org/debian-security/	bookworm-security
+apt-debian-trixie	http://deb.debian.org/debian/	trixie
+apt-debian-trixie-updates	http://deb.debian.org/debian/	trixie-updates
+apt-debian-trixie-security	http://security.debian.org/debian-security/	trixie-security

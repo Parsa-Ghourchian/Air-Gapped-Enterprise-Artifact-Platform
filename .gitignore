@@ -1,0 +1,55 @@
+# Environment files
+.env
+*.env.local
+
+# Runtime data
+data/
+backups/
+offline-bundles/
+reports/
+apt-mini-repos/
+secrets/
+
+# Local tool cache
+.venv/
+venv/
+.venv-tools/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Databases and runtime state
+*.db
+*.sqlite
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+logs/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# SBOM / audit outputs
+*.cyclonedx.json
+*.spdx.json
+*.grype.json
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.tmp
+
+# Certificates and keys
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+traefik/certs/

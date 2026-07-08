@@ -1,0 +1,47 @@
+name: CI Example - Air-Gapped Artifact Platform
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "examples/ci-app/**"
+
+env:
+  IMAGE_NAME: demo/ci-app
+  IMAGE_TAG: v0.1.0
+
+jobs:
+  build-sbom-audit-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            examples/ci-app
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+
+      - name: Login to Nexus Docker Registry
+        if: ${{ secrets.NEXUS_REGISTRY != '' }}
+        run: |
+          echo "${{ secrets.NEXUS_PASSWORD }}" | docker login "${{ secrets.NEXUS_REGISTRY }}" \
+            -u "${{ secrets.NEXUS_USERNAME }}" \
+            --password-stdin
+
+      - name: Tag and push to Nexus
+        if: ${{ secrets.NEXUS_REGISTRY != '' }}
+        run: |
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "${{ secrets.NEXUS_REGISTRY }}/${IMAGE_NAME}:${IMAGE_TAG}"
+          docker push "${{ secrets.NEXUS_REGISTRY }}/${IMAGE_NAME}:${IMAGE_TAG}"
