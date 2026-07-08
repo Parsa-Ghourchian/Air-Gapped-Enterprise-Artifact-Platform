@@ -476,3 +476,108 @@ nav {
 .legacy-block .artifact-head span {
   color: #fde68a;
 }
+
+/* Professional report and log readability */
+#jobLogs,
+.job-logs,
+.logs,
+.log-output,
+pre {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: .01em;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  max-height: 68vh;
+  background: linear-gradient(180deg, rgba(3,7,18,.98), rgba(2,6,23,.98));
+  border: 1px solid rgba(148,163,184,.20);
+  border-radius: 18px;
+  padding: 18px 20px;
+  color: #dbeafe;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.25);
+}
+
+a[href*="/report/"] {
+  color: #60a5fa !important;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(96,165,250,.65);
+}
+
+a[href*="/report/"]:hover {
+  color: #93c5fd !important;
+  border-bottom-style: solid;
+}
+
+/* Professional report and log readability */
+#jobLogs,
+.job-logs,
+.logs,
+.log-output,
+pre {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: .01em;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  max-height: 68vh;
+  background: linear-gradient(180deg, rgba(3,7,18,.98), rgba(2,6,23,.98));
+  border: 1px solid rgba(148,163,184,.20);
+  border-radius: 18px;
+  padding: 18px 20px;
+  color: #dbeafe;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.25);
+}
+
+a[href*="/report/"] {
+  color: #60a5fa !important;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(96,165,250,.65);
+}
+
+a[href*="/report/"]:hover {
+  color: #93c5fd !important;
+  border-bottom-style: solid;
+}
+
+/* Professional report and log readability */
+#jobLogs,
+.job-logs,
+.logs,
+.log-output,
+pre {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: .01em;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  max-height: 68vh;
+  background: linear-gradient(180deg, rgba(3,7,18,.98), rgba(2,6,23,.98));
+  border: 1px solid rgba(148,163,184,.20);
+  border-radius: 18px;
+  padding: 18px 20px;
+  color: #dbeafe;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.25);
+}
+
+a[href*="/report/"] {
+  color: #60a5fa !important;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(96,165,250,.65);
+}
+
+a[href*="/report/"]:hover {
+  color: #93c5fd !important;
+  border-bottom-style: solid;
+}
