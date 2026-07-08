@@ -1363,14 +1363,6 @@ This project is provided **“as is”**, without warranty of any kind, express 
 
 For enterprise, commercial, or internal deployments, review the license terms carefully and make sure they match your organization’s compliance and security requirements.
 
-```text
-Recommended License:
-MIT License
-
-Alternative Options:
-Apache License 2.0
-Private / Internal Use Only
-
 ---
 
 ## 🏁 Final Statement
