@@ -38,6 +38,10 @@ NEXUS_ADMIN_PASSWORD = os.getenv("NEXUS_ADMIN_PASSWORD", "")
 NEXUS_DOCKER_GROUP = os.getenv("NEXUS_DOCKER_GROUP", "localhost:5002")
 NEXUS_RAW_OFFLINE_BUNDLES = os.getenv("NEXUS_RAW_OFFLINE_BUNDLES", "raw-offline-bundles")
 
+PYTHON2_DOCKER_IMAGE = os.getenv("PYTHON2_DOCKER_IMAGE", "python:2.7-slim")
+PYTHON2_DOCKER_NETWORK = os.getenv("PYTHON2_DOCKER_NETWORK", "airgap-artifacts-platform")
+PYTHON2_PIP_INDEX_URL = os.getenv("PYTHON2_PIP_INDEX_URL", f"{NEXUS_URL}/repository/pypi2-group/simple")
+
 PORTAL_ADMIN_USER = os.getenv("PORTAL_ADMIN_USER", "admin")
 PORTAL_ADMIN_PASSWORD = os.getenv("PORTAL_ADMIN_PASSWORD", "ChangeThisPortalPassword_12345")
 PORTAL_ADMIN_PASSWORD_HASH = os.getenv("PORTAL_ADMIN_PASSWORD_HASH", "")
@@ -97,6 +101,7 @@ class SSHPayload(BaseModel):
 class BundleSpec(BaseModel):
     docker_images: list[str] = []
     python_packages: list[str] = []
+    python2_packages: list[str] = []
     apt_packages: list[str] = []
     apt_target: str = "ubuntu-noble"
 
@@ -668,6 +673,9 @@ def preflight_check(payload: SSHPayload, job_id: str | None = None) -> dict[str,
         code, python_version, _ = remote_exec(client, "python3 --version", job_id, check=False)
         add("Python 3", "OK" if code == 0 else "WARN", python_version)
 
+        code, python2_version, _ = remote_exec(client, "python2 --version 2>&1", job_id, check=False)
+        add("Python 2 Legacy", "OK" if code == 0 else "WARN", python2_version or "python2 not found")
+
         code, apt_version, _ = remote_exec(client, "apt-get --version | head -1", job_id, check=False)
         add("APT", "OK" if code == 0 else "WARN", apt_version)
 
@@ -747,10 +755,14 @@ def security_gate(payload: SecurityGateIn) -> dict[str, Any]:
 
     docker_images = [x.strip() for x in payload.bundle.docker_images if x.strip()]
     python_packages = [x.strip() for x in payload.bundle.python_packages if x.strip()]
+    python2_packages = [x.strip() for x in payload.bundle.python2_packages if x.strip()]
     apt_packages = [x.strip() for x in payload.bundle.apt_packages if x.strip()]
 
-    if not docker_images and not python_packages and not apt_packages:
+    if not docker_images and not python_packages and not python2_packages and not apt_packages:
         errors.append("No artifacts selected.")
+
+    if python2_packages:
+        warnings.append("Python 2 legacy packages selected. Use only for legacy systems and keep versions pinned.")
 
     if PORTAL_BLOCK_LATEST_TAG:
         for image in docker_images:
@@ -929,11 +941,13 @@ def create_bundle(job_id: str, spec: BundleSpec, user: str, security: dict[str, 
 
     (bundle_dir / "docker").mkdir(parents=True, exist_ok=True)
     (bundle_dir / "python/wheels").mkdir(parents=True, exist_ok=True)
+    (bundle_dir / "python2/wheels").mkdir(parents=True, exist_ok=True)
     (bundle_dir / "apt-mini-repo").mkdir(parents=True, exist_ok=True)
     (bundle_dir / "metadata").mkdir(parents=True, exist_ok=True)
 
     selected_docker_images = [x.strip() for x in spec.docker_images if x.strip()]
     selected_python_packages = [x.strip() for x in spec.python_packages if x.strip()]
+    selected_python2_packages = [x.strip() for x in spec.python2_packages if x.strip()]
     selected_apt_packages = [x.strip() for x in spec.apt_packages if x.strip()]
 
     if selected_docker_images:
@@ -982,6 +996,40 @@ def create_bundle(job_id: str, spec: BundleSpec, user: str, security: dict[str, 
 
         (bundle_dir / "python/requirements.txt").write_text("\n".join(selected_python_packages) + "\n")
 
+    if selected_python2_packages:
+        log_job(job_id, "INFO", "Preparing Python 2 legacy wheels from Nexus pypi2-group")
+
+        python2_dir = bundle_dir / "python2"
+        python2_dir.mkdir(parents=True, exist_ok=True)
+        (python2_dir / "requirements.txt").write_text("\n".join(selected_python2_packages) + "\n")
+
+        host_python2_dir = host_path_for(python2_dir)
+        trusted_host = PYTHON2_PIP_INDEX_URL.replace("http://", "").replace("https://", "").split("/")[0].split(":")[0]
+
+        py2_command = (
+            "python -m ensurepip || true; "
+            "python -m pip install --upgrade 'pip<21' 'setuptools<45' 'wheel<0.38'; "
+            f"python -m pip download --no-cache-dir --index-url {shlex.quote(PYTHON2_PIP_INDEX_URL)} "
+            f"--trusted-host {shlex.quote(trusted_host)} -r /python2/requirements.txt -d /python2/wheels"
+        )
+
+        run_local_cmd(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                PYTHON2_DOCKER_NETWORK,
+                "-v",
+                f"{host_python2_dir}:/python2",
+                PYTHON2_DOCKER_IMAGE,
+                "bash",
+                "-lc",
+                py2_command,
+            ],
+            job_id,
+        )
+
     if selected_apt_packages:
         create_apt_mini_repo(job_id, selected_apt_packages, spec.apt_target, bundle_dir / "apt-mini-repo")
         (bundle_dir / "apt/packages.txt").parent.mkdir(parents=True, exist_ok=True)
@@ -996,6 +1044,7 @@ def create_bundle(job_id: str, spec: BundleSpec, user: str, security: dict[str, 
             "apt_target": spec.apt_target,
             "docker_images": selected_docker_images,
             "python_packages": selected_python_packages,
+            "python2_packages": selected_python2_packages,
             "apt_packages": selected_apt_packages,
             "security": security,
             "format_version": "4.0",
@@ -1519,6 +1568,7 @@ def api_security_gate(payload: SecurityGateIn, request: Request, user: str = Dep
 def artifacts(user: str = Depends(current_user)):
     docker_items = set(read_lines(CONFIGS_ROOT / "docker-images.txt"))
     python_items = set(read_lines(CONFIGS_ROOT / "python-requirements.txt"))
+    python2_items = set(read_lines(CONFIGS_ROOT / "python2-requirements.txt"))
     apt_items = set(read_lines(CONFIGS_ROOT / "apt-packages.txt"))
 
     for item in nexus_components("docker-hosted"):
@@ -1527,9 +1577,13 @@ def artifacts(user: str = Depends(current_user)):
     for item in nexus_components("pypi-hosted"):
         python_items.add(item)
 
+    for item in nexus_components("pypi2-hosted"):
+        python2_items.add(item)
+
     return {
         "docker_images": sorted(docker_items),
         "python_packages": sorted(python_items),
+        "python2_packages": sorted(python2_items),
         "apt_packages": sorted(apt_items),
         "apt_targets": APT_TARGETS,
     }

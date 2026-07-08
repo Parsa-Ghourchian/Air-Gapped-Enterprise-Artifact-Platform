@@ -1,4 +1,4 @@
-.PHONY: up down restart logs ps init test backup restore sync-docker sync-python \
+.PHONY: pypi2-repos up down restart logs ps init test backup restore sync-docker sync-python \
         apt-repos apt-configs apt-mini upload-apt-mini sbom audit upload-backup \
         size portal-build portal-logs clean-generated final-check
 
@@ -20,6 +20,7 @@ ps:
 init:
 	bash scripts/init-nexus.sh
 	bash scripts/create-apt-proxy-repos.sh
+	bash scripts/create-pypi2-repos.sh
 	bash scripts/generate-apt-client-configs.sh
 
 test:
@@ -83,3 +84,16 @@ final-check:
 	@grep -q "airgap-portal" docker-compose.override.yml && echo "Portal service OK"
 	@git add -n . >/tmp/airgap-git-dryrun.txt || true
 	@echo "Git dry-run written to /tmp/airgap-git-dryrun.txt"
+
+
+pypi2-repos:
+	bash scripts/create-pypi2-repos.sh
+
+python2-bundle:
+	bash scripts/build-python2-offline-bundle.sh
+
+python2-bundle-test:
+	bash scripts/test-python2-offline-bundle.sh
+
+upload-python2-bundle:
+	bash scripts/upload-python2-bundle-to-nexus.sh

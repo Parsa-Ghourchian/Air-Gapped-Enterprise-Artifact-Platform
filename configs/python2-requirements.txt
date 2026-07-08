@@ -1,0 +1,10 @@
+# Python 2 legacy packages.
+# Python 2 is end-of-life. Use only for legacy systems.
+# Always pin versions.
+
+requests==2.27.1
+urllib3==1.26.18
+six==1.16.0
+setuptools==44.1.1
+wheel==0.37.1
+pip==20.3.4

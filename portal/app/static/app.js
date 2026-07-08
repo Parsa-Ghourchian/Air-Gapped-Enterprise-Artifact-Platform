@@ -84,11 +84,13 @@ function sshPayload() {
 function bundlePayload() {
   const dockerImages = [...selectedValues("dockerArtifacts"), ...lines($("dockerManual").value)];
   const pythonPackages = [...selectedValues("pythonArtifacts"), ...lines($("pythonManual").value)];
+  const python2Packages = [...selectedValues("python2Artifacts"), ...lines($("python2Manual").value)];
   const aptPackages = [...selectedValues("aptArtifacts"), ...lines($("aptManual").value)];
 
   return {
     docker_images: [...new Set(dockerImages)],
     python_packages: [...new Set(pythonPackages)],
+    python2_packages: [...new Set(python2Packages)],
     apt_packages: [...new Set(aptPackages)],
     apt_target: $("aptTarget").value,
   };
@@ -121,6 +123,7 @@ function goStep(n) {
         <b>Bundle Summary</b><br>
         Docker images: ${b.docker_images.length}<br>
         Python packages: ${b.python_packages.length}<br>
+        Python 2 packages: ${(b.python2_packages || []).length}<br>
         APT packages: ${b.apt_packages.length}<br>
         APT target: ${escapeHtml(b.apt_target)}<br>
         Deploy enabled: ${$("deployEnabled").checked ? "Yes" : "No"}
@@ -197,6 +200,7 @@ async function loadArtifacts() {
   state.artifacts = await api("/api/artifacts");
   renderChecks("dockerArtifacts", state.artifacts.docker_images || []);
   renderChecks("pythonArtifacts", state.artifacts.python_packages || []);
+  renderChecks("python2Artifacts", state.artifacts.python2_packages || []);
   renderChecks("aptArtifacts", state.artifacts.apt_packages || []);
 }
 

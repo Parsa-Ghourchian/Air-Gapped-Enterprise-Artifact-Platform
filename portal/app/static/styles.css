@@ -466,3 +466,13 @@ nav {
   .stats-grid, .stats-grid.small, .grid-2, .deploy-layout, .wizard-stepper { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
 }
+
+
+.legacy-block {
+  border-left: 3px solid rgba(245, 158, 11, .65);
+  padding-left: 14px;
+}
+
+.legacy-block .artifact-head span {
+  color: #fde68a;
+}
