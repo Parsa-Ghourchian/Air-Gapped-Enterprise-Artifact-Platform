@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Restore Nexus data from a backup archive.
+# Restore Nexus and portal PostgreSQL data from a backup archive.
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -28,11 +28,18 @@ if [[ -d data/nexus ]]; then
   mv data/nexus "data/nexus.before-${TIMESTAMP}"
 fi
 
+if [[ -d data/postgres ]]; then
+  echo "Moving current PostgreSQL data to data/postgres.before-${TIMESTAMP}"
+  mv data/postgres "data/postgres.before-${TIMESTAMP}"
+fi
+
 echo "Restoring backup..."
 tar -xzf "$BACKUP_FILE"
 
 echo "Fixing permissions..."
-sudo chown -R 200:200 data/nexus
+if [[ -d data/nexus ]]; then
+  sudo chown -R 200:200 data/nexus
+fi
 
 echo "Starting stack..."
 docker compose up -d

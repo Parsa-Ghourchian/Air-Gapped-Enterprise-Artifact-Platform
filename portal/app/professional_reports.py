@@ -1,32 +1,32 @@
 
 import json
 import html
-import os
-import sqlite3
 import textwrap
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 
-
-def _db_path():
-    return os.getenv("PORTAL_DB_PATH", "/workspace/data/portal/portal.db")
+from app.database import db_conn
 
 
 def _workspace():
+    import os
     return Path(os.getenv("APP_WORKSPACE", "/workspace"))
-
-
-def _connect():
-    c = sqlite3.connect(_db_path())
-    c.row_factory = sqlite3.Row
-    return c
 
 
 def _cols(c, table):
     try:
-        return [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+        rows = c.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema='public' AND table_name=?
+            ORDER BY ordinal_position
+            """,
+            (table,),
+        ).fetchall()
+        return [r["column_name"] for r in rows]
     except Exception:
         return []
 
@@ -53,8 +53,7 @@ def _json_load(value):
 
 
 def _job_and_logs(job_id):
-    c = _connect()
-    try:
+    with db_conn() as c:
         job_cols = _cols(c, "jobs")
         if not job_cols:
             raise HTTPException(status_code=500, detail="jobs table not found")
@@ -86,8 +85,6 @@ def _job_and_logs(job_id):
                 logs = [dict(r) for r in rows]
 
         return job, logs
-    finally:
-        c.close()
 
 
 def _log_line(row):

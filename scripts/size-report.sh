@@ -11,7 +11,7 @@ du -sh . 2>/dev/null || true
 
 echo
 echo "Important directories:"
-du -sh data/nexus data/prometheus data/grafana reports offline-bundles apt-mini-repos 2>/dev/null || true
+du -sh data/nexus data/postgres data/prometheus data/grafana reports offline-bundles apt-mini-repos 2>/dev/null || true
 
 echo
 echo "Docker disk usage:"

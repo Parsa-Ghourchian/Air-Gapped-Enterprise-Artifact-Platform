@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Nexus Air-Gapped Deployment Portal V4</title>
+  <title>Nexus Air-Gapped Deployment Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
@@ -10,7 +10,7 @@
   <section id="loginView" class="login-shell">
     <div class="login-card">
       <div class="logo-mark">N</div>
-      <p class="eyebrow">Final Enterprise Edition</p>
+      <p class="eyebrow">Secure Enterprise Edition</p>
       <h1>Nexus Air-Gapped Deployment Portal</h1>
       <p class="muted">
         Build, verify, transfer and deploy offline bundles through a controlled,
@@ -33,16 +33,18 @@
         <div class="logo-mark small">N</div>
         <div>
           <strong>Nexus Portal</strong>
-          <span>V4 Final</span>
+          <span>Production 1.0</span>
         </div>
       </div>
 
       <nav>
         <button class="nav active" data-tab="dashboard">Dashboard</button>
         <button class="nav" data-tab="wizard">Deployment Wizard</button>
+        <button class="nav" data-tab="publish">Artifact Publishing</button>
         <button class="nav" data-tab="servers">Target Servers</button>
         <button class="nav" data-tab="history">History & Reports</button>
         <button class="nav" data-tab="audit">Audit Log</button>
+        <button class="nav" data-tab="security">Security Center</button>
         <button class="nav" data-tab="storage">Storage Guard</button>
       </nav>
 
@@ -75,10 +77,10 @@
             a complete deployment report with rollback guidance.
           </p>
           <div class="hero-actions">
-            <a href="http://nexus.local" target="_blank">Open Nexus</a>
-            <a href="http://grafana.local" target="_blank">Open Grafana</a>
-            <a href="http://prometheus.local" target="_blank">Open Prometheus</a>
-            <a href="http://traefik.local:8080" target="_blank">Open Traefik</a>
+            <a href="http://localhost:8081" target="_blank" rel="noopener">Open Nexus</a>
+            <a href="http://localhost:3000" target="_blank" rel="noopener">Open Grafana</a>
+            <a href="http://localhost:9090" target="_blank" rel="noopener">Open Prometheus</a>
+            <a href="http://localhost:8080" target="_blank" rel="noopener">Open Traefik</a>
           </div>
         </div>
       </section>
@@ -228,6 +230,95 @@
         </div>
       </section>
 
+      <section id="publish" class="tab hidden">
+        <div class="stats-grid small">
+          <div class="stat-card"><span>Publish Jobs</span><strong id="publishJobCount">0</strong></div>
+          <div class="stat-card"><span>Running</span><strong id="publishRunning">0</strong></div>
+          <div class="stat-card"><span>Success</span><strong id="publishSuccess">0</strong></div>
+          <div class="stat-card"><span>Failed</span><strong id="publishFailed">0</strong></div>
+        </div>
+
+        <div class="access-grid">
+          <div class="panel">
+            <h3>Container Image by Name</h3>
+            <p class="muted">Enter an image name and tag. If it is not local or already in Nexus, the portal pulls it and publishes it.</p>
+            <form id="publishDockerForm" class="form-grid compact-form">
+              <input id="publishDockerSource" class="span-2" placeholder="Source image, e.g. nginx:1.27 or myapp:1.0.0" required>
+              <input id="publishDockerTarget" class="span-2" placeholder="Target image path, blank = same name">
+              <input id="publishDockerRepo" value="docker-hosted" placeholder="Nexus repository">
+              <button class="primary" type="submit">Publish Image</button>
+            </form>
+            <div id="publishDockerResult" class="mini-result"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Container Image Archive</h3>
+            <p class="muted">Upload a Docker image archive created with docker save, then tag and publish it to Nexus.</p>
+            <form id="publishDockerArchiveForm" class="form-grid compact-form">
+              <input id="publishDockerArchiveTarget" class="span-2" placeholder="Target image, e.g. internal/myapp:1.0.0">
+              <input id="publishDockerArchiveRepo" value="docker-hosted" placeholder="Nexus repository">
+              <input id="publishDockerArchiveFile" type="file" accept=".tar,.gz,.tgz" required>
+              <button class="primary" type="submit">Upload Archive</button>
+            </form>
+            <div id="publishDockerArchiveResult" class="mini-result"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Python Package Fetch</h3>
+            <p class="muted">Enter package coordinates. The portal downloads the package in the selected Python runtime and publishes it to Nexus.</p>
+            <form id="publishPythonForm" class="form-grid compact-form">
+              <input id="publishPythonName" placeholder="Package name, e.g. requests" required>
+              <input id="publishPythonVersion" placeholder="Version, blank = latest allowed">
+              <select id="publishPythonRuntime">
+                <option value="python3">Python 3</option>
+                <option value="python2">Python 2 legacy</option>
+              </select>
+              <input id="publishPythonRepo" value="pypi-hosted" placeholder="Nexus PyPI hosted repository">
+              <label class="check"><input id="publishPythonDeps" type="checkbox" checked> Include dependencies</label>
+              <button class="primary" type="submit">Fetch & Publish</button>
+            </form>
+            <div id="publishPythonResult" class="mini-result"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Debian Package Fetch</h3>
+            <p class="muted">Select a target release and enter package coordinates. The portal fetches .deb files and publishes them.</p>
+            <form id="publishDebianForm" class="form-grid compact-form">
+              <input id="publishDebianName" placeholder="Package name, e.g. curl" required>
+              <input id="publishDebianVersion" placeholder="Version, blank = release default">
+              <select id="publishDebianRelease">
+                <option value="ubuntu-noble">Ubuntu 24.04 Noble</option>
+                <option value="ubuntu-plucky">Ubuntu 25.04 Plucky</option>
+                <option value="ubuntu-resolute">Ubuntu 26.04 Resolute</option>
+                <option value="debian-bullseye">Debian 11 Bullseye</option>
+                <option value="debian-bookworm">Debian 12 Bookworm</option>
+                <option value="debian-trixie">Debian 13 Trixie</option>
+              </select>
+              <input id="publishDebianRepo" value="apt-internal-hosted" placeholder="Nexus APT hosted repository">
+              <label class="check"><input id="publishDebianDeps" type="checkbox" checked> Include dependencies</label>
+              <button class="primary" type="submit">Fetch & Publish</button>
+            </form>
+            <div id="publishDebianResult" class="mini-result"></div>
+          </div>
+
+          <div class="panel">
+            <div class="section-head">
+              <h3>Publishing Logs</h3>
+              <button id="refreshPublishBtn" class="ghost">Refresh</button>
+            </div>
+            <pre id="publishLogs" class="log-box compact-log">Select a publish job to view logs.</pre>
+          </div>
+        </div>
+
+        <div class="panel publish-history">
+          <div class="section-head">
+            <h3>Publish History</h3>
+            <span class="muted">Approved artifacts imported into Nexus</span>
+          </div>
+          <div id="publishJobsList" class="jobs"></div>
+        </div>
+      </section>
+
       <section id="servers" class="tab hidden">
         <div class="grid-2">
           <div class="panel">
@@ -275,6 +366,198 @@
             <button id="refreshAuditBtn" class="ghost">Refresh</button>
           </div>
           <div id="auditList" class="audit-list"></div>
+        </div>
+      </section>
+
+      <section id="security" class="tab hidden">
+        <div class="security-center">
+          <header class="security-hero">
+            <div>
+              <p class="eyebrow">Registry Security</p>
+              <h3>Registry Access Control</h3>
+              <p>
+                Centrally manage which Nexus identities may use the registry and which source networks may reach
+                protected Nexus ports. Changes are explicit, audited, and applied through the actions below.
+              </p>
+            </div>
+            <div class="security-actions">
+              <button id="syncNexusAccessBtn" class="primary" title="Create or update Nexus roles and users from this policy, and disable anonymous Nexus access.">Sync Nexus Access</button>
+              <button id="previewFirewallBtn" class="ghost" title="Preview the exact host firewall policy before applying it.">Preview Firewall</button>
+              <button id="applyFirewallBtn" class="primary danger" title="Apply host firewall rules. Add your current admin IP before using this.">Apply IP Firewall</button>
+            </div>
+          </header>
+
+          <div id="accessActionResult" class="mini-result security-feedback"></div>
+
+          <div class="security-metrics">
+            <div class="security-metric"><span>Groups</span><strong id="accessGroupCount">0</strong></div>
+            <div class="security-metric"><span>Trusted Accounts</span><strong id="accessPrincipalCount">0</strong></div>
+            <div class="security-metric"><span>Trusted IP Rules</span><strong id="accessIpCount">0</strong></div>
+            <div class="security-metric"><span>Protected Ports</span><strong id="accessPorts">-</strong></div>
+          </div>
+
+          <div class="security-layout">
+            <article class="security-card">
+              <div class="security-card-head">
+                <div>
+                  <h3>Groups & Permissions</h3>
+                  <p>Model access duties such as pull-only systems, build agents, or release publishers.</p>
+                </div>
+                <span class="help-dot" title="Groups become Nexus roles. Assign the smallest permission set that supports the workflow.">?</span>
+              </div>
+
+              <form id="accessGroupForm" class="security-form">
+                <input id="accessGroupId" type="hidden">
+                <div class="security-fields two">
+                  <div class="security-field">
+                    <label for="accessGroupName">Group Name <span class="help-dot" title="Human-readable policy name synchronized to a Nexus role.">?</span></label>
+                    <input id="accessGroupName" placeholder="Production Pullers" required>
+                    <small>Use a clear duty name administrators will recognize later.</small>
+                  </div>
+                  <div class="security-field">
+                    <label for="accessGroupDesc">Description <span class="help-dot" title="Short explanation of who belongs in this group.">?</span></label>
+                    <input id="accessGroupDesc" placeholder="Runtime hosts allowed to pull approved images">
+                    <small>Explain when this group should be assigned.</small>
+                  </div>
+                </div>
+                <div class="security-field">
+                  <label>Permissions <span class="help-dot" title="Each selected permission maps to Nexus repository privileges.">?</span></label>
+                  <div id="accessPermissionChecks" class="security-choice-grid"></div>
+                  <small>Select at least one permission. Prefer least privilege.</small>
+                </div>
+                <div class="security-form-actions">
+                  <button class="primary" type="submit">Save Group</button>
+                  <button id="resetGroupFormBtn" class="ghost" type="button">Clear</button>
+                </div>
+              </form>
+
+              <div class="security-list-block">
+                <h4>Existing Groups</h4>
+                <div id="accessGroupsList" class="security-list"></div>
+              </div>
+            </article>
+
+            <article class="security-card">
+              <div class="security-card-head">
+                <div>
+                  <h3>Trusted Users & Systems</h3>
+                  <p>Create explicit Nexus accounts for approved people, services, and automation.</p>
+                </div>
+                <span class="help-dot" title="Accounts become Nexus users. Passwords are sent to Nexus and are not stored in the portal.">?</span>
+              </div>
+
+              <form id="accessPrincipalForm" class="security-form">
+                <input id="accessPrincipalId" type="hidden">
+                <div class="security-fields two">
+                  <div class="security-field">
+                    <label for="accessPrincipalUsername">Username / Service ID <span class="help-dot" title="The Nexus user ID used by Docker, pip, apt, or automation.">?</span></label>
+                    <input id="accessPrincipalUsername" placeholder="ci-prod-puller" required>
+                    <small>Use stable names; edits keep the existing portal record.</small>
+                  </div>
+                  <div class="security-field">
+                    <label for="accessPrincipalType">Account Type <span class="help-dot" title="Use service accounts for automation and human users for named administrators.">?</span></label>
+                    <select id="accessPrincipalType">
+                      <option value="service">Service account</option>
+                      <option value="user">Human user</option>
+                    </select>
+                    <small>Select how this account will be used.</small>
+                  </div>
+                  <div class="security-field">
+                    <label for="accessPrincipalDisplay">Display Name <span class="help-dot" title="Friendly label shown in the portal and synchronized to Nexus.">?</span></label>
+                    <input id="accessPrincipalDisplay" placeholder="Production CI Puller">
+                    <small>Useful for audits and handoffs.</small>
+                  </div>
+                  <div class="security-field">
+                    <label for="accessPrincipalEmail">Email <span class="help-dot" title="Nexus expects an email-like value for users.">?</span></label>
+                    <input id="accessPrincipalEmail" placeholder="ci-prod-puller@example.local">
+                    <small>Use an owner or system mailbox when available.</small>
+                  </div>
+                </div>
+                <div class="security-field">
+                  <label for="accessPrincipalPassword">Password <span class="help-dot" title="On create, blank generates a one-time password. On update, blank leaves the Nexus password unchanged.">?</span></label>
+                  <input id="accessPrincipalPassword" type="password" placeholder="Blank = generated on create / unchanged on update">
+                  <small>The generated password is shown once after account creation.</small>
+                </div>
+                <label class="security-toggle">
+                  <input id="accessPrincipalEnabled" type="checkbox" checked>
+                  <span>Enabled</span>
+                  <small>Disabled accounts remain in policy but cannot authenticate.</small>
+                </label>
+                <div class="security-field">
+                  <label>Assigned Groups <span class="help-dot" title="Groups determine the Nexus roles and repository permissions assigned to this account.">?</span></label>
+                  <div id="accessGroupChecks" class="security-choice-grid compact"></div>
+                  <small>Assign at least one group before enabling or syncing the account.</small>
+                </div>
+                <div id="accessPasswordResult" class="mini-result"></div>
+                <div class="security-form-actions">
+                  <button class="primary" type="submit">Save Account</button>
+                  <button id="resetPrincipalFormBtn" class="ghost" type="button">Clear</button>
+                </div>
+              </form>
+
+              <div class="security-list-block">
+                <h4>Trusted Accounts</h4>
+                <div id="accessPrincipalsList" class="security-list"></div>
+              </div>
+            </article>
+
+            <article class="security-card">
+              <div class="security-card-head">
+                <div>
+                  <h3>Trusted IP Addresses & Ranges</h3>
+                  <p>Allow approved client networks only. Add your admin workstation before applying firewall rules.</p>
+                </div>
+                <span class="help-dot" title="Only enabled CIDRs are allowed through the host firewall for protected Nexus ports.">?</span>
+              </div>
+
+              <form id="accessIpForm" class="security-form">
+                <input id="accessIpId" type="hidden">
+                <div class="security-fields two">
+                  <div class="security-field">
+                    <label for="accessIpName">Rule Name <span class="help-dot" title="Short label for this trusted source network.">?</span></label>
+                    <input id="accessIpName" placeholder="Build subnet" required>
+                    <small>Use names like Admin VPN, CI runners, or Production nodes.</small>
+                  </div>
+                  <div class="security-field">
+                    <label for="accessIpCidr">IP / CIDR <span class="help-dot" title="A single host can be written as /32, for example 192.168.1.50/32.">?</span></label>
+                    <input id="accessIpCidr" placeholder="10.20.0.0/24" required>
+                    <small>Only enabled ranges can reach protected registry ports.</small>
+                  </div>
+                </div>
+                <div class="security-field">
+                  <label for="accessIpDesc">Description <span class="help-dot" title="Reason this source network is trusted.">?</span></label>
+                  <input id="accessIpDesc" placeholder="CI runners in production network">
+                  <small>Record ownership and intended use for audits.</small>
+                </div>
+                <label class="security-toggle">
+                  <input id="accessIpEnabled" type="checkbox" checked>
+                  <span>Enabled</span>
+                  <small>Disabled rules are saved but excluded from firewall policy.</small>
+                </label>
+                <div class="security-form-actions">
+                  <button class="primary" type="submit">Save IP Rule</button>
+                  <button id="resetIpFormBtn" class="ghost" type="button">Clear</button>
+                </div>
+              </form>
+
+              <div class="security-list-block">
+                <h4>Trusted IP Rules</h4>
+                <div id="accessIpList" class="security-list"></div>
+              </div>
+            </article>
+
+            <article class="security-card">
+              <div class="security-card-head">
+                <div>
+                  <h3>Enforcement Status</h3>
+                  <p>Review Nexus sync and firewall state before applying network enforcement.</p>
+                </div>
+                <span class="help-dot" title="Nexus sync controls authentication and roles. Firewall apply controls source IP access to published Nexus ports.">?</span>
+              </div>
+              <div id="accessEnforcement" class="security-list"></div>
+              <pre id="firewallPreview" class="security-code">Preview firewall rules before applying them.</pre>
+            </article>
+          </div>
         </div>
       </section>
 

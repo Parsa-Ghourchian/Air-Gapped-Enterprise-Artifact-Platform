@@ -12,6 +12,12 @@ set +a
 
 echo "Testing HTTP endpoints..."
 
+docker exec airgap-postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null
+echo "OK: PostgreSQL"
+
+curl -fsS http://localhost:8095/health | grep -q '"database":"postgresql"'
+echo "OK: Portal API and PostgreSQL connection"
+
 curl -fsS http://localhost:8081/service/rest/v1/status >/dev/null
 echo "OK: Nexus API"
 

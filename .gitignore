@@ -7,6 +7,7 @@ data/
 backups/
 offline-bundles/
 reports/
+published-artifacts/
 apt-mini-repos/
 secrets/
 

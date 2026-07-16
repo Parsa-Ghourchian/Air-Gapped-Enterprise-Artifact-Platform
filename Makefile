@@ -75,11 +75,12 @@ portal-logs:
 	docker logs -f airgap-portal
 
 clean-generated:
-	rm -rf reports/jobs/* offline-bundles/portal-jobs/* apt-mini-repos/*
+	rm -rf reports/jobs/* offline-bundles/portal-jobs/* published-artifacts/portal-jobs/* apt-mini-repos/*
 
 final-check:
 	docker compose config >/dev/null
 	@echo "Compose config OK"
+	@grep -q "postgres" docker-compose.yml && echo "PostgreSQL service OK"
 	@grep -q "portal.local" docker-compose.override.yml && echo "Portal route OK"
 	@grep -q "airgap-portal" docker-compose.override.yml && echo "Portal service OK"
 	@git add -n . >/tmp/airgap-git-dryrun.txt || true

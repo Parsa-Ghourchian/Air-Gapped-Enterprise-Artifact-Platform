@@ -1,0 +1,374 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+6 0 obj
+<< /Length 3704 >>
+stream
+BT /F2 20 Tf 48 794 Td (Nexus Portal and Nexus Registry Ubuntu Testing Guide) Tj ET
+BT /F1 10 Tf 48 764 Td (Complete step-by-step validation guide for testing the local Dockerized Nexus Portal,) Tj ET
+BT /F1 10 Tf 48 751 Td (PostgreSQL-backed portal state, Nexus Repository Manager, Docker registry workflows,) Tj ET
+BT /F1 10 Tf 48 738 Td (artifact publishing, Security Center, Registry Access Control, audit logs, reports, and) Tj ET
+BT /F1 10 Tf 48 725 Td (operational status.) Tj ET
+BT /F1 9 Tf 48 707 Td (Generated: 2026-07-16 19:13:02) Tj ET
+BT /F1 9 Tf 48 695 Td (Test host IP: 172.20.102.182) Tj ET
+BT /F2 14 Tf 48 674 Td (1. Environment and Service URLs) Tj ET
+BT /F1 10 Tf 48 654 Td (Use these URLs and registry ports for the current localhost deployment.) Tj ET
+BT /F3 8.5 Tf 58 636 Td (Portal:     http://localhost:8095) Tj ET
+BT /F3 8.5 Tf 58 625 Td (Nexus UI:   http://localhost:8081) Tj ET
+BT /F3 8.5 Tf 58 614 Td (Grafana:    http://localhost:3000) Tj ET
+BT /F3 8.5 Tf 58 603 Td (Prometheus: http://localhost:9090) Tj ET
+BT /F3 8.5 Tf 58 592 Td () Tj ET
+BT /F3 8.5 Tf 58 581 Td (Nexus Docker hosted registry: localhost:5000) Tj ET
+BT /F3 8.5 Tf 58 570 Td (Nexus Docker proxy registry:  localhost:5001) Tj ET
+BT /F3 8.5 Tf 58 559 Td (Nexus Docker group registry:  localhost:5002) Tj ET
+BT /F3 8.5 Tf 58 548 Td () Tj ET
+BT /F3 8.5 Tf 58 537 Td (Ubuntu host IP for network testing: 172.20.102.182) Tj ET
+BT /F1 10 Tf 48 519 Td (Before running commands, load the local project environment values.) Tj ET
+BT /F3 8.5 Tf 58 501 Td (cd /home/parsa/project/airgapped-enterprise-artifact-platform) Tj ET
+BT /F3 8.5 Tf 58 490 Td (source .env) Tj ET
+BT /F2 14 Tf 48 463 Td (2. Verify Platform Health) Tj ET
+BT /F3 8.5 Tf 58 443 Td (docker compose ps) Tj ET
+BT /F3 8.5 Tf 58 432 Td (curl -fsS http://localhost:8095/health) Tj ET
+BT /F3 8.5 Tf 58 421 Td (curl -fsS http://localhost:8081/service/rest/v1/status) Tj ET
+BT /F3 8.5 Tf 58 410 Td (curl -I http://localhost:3000/login) Tj ET
+BT /F2 10 Tf 48 392 Td (Expected result: portal, PostgreSQL, and Nexus are healthy; portal health returns) Tj ET
+BT /F2 10 Tf 48 379 Td (database=postgresql; Nexus and Grafana respond successfully.) Tj ET
+BT /F1 10 Tf 48 361 Td (Open the portal in a browser and sign in using PORTAL_ADMIN_USER and PORTAL_ADMIN_PASSWORD) Tj ET
+BT /F1 10 Tf 48 348 Td (from .env.) Tj ET
+BT /F2 14 Tf 48 321 Td (3. Configure Docker on Ubuntu for Nexus Registry) Tj ET
+BT /F1 10 Tf 48 301 Td (Because this local setup uses HTTP registry ports, Docker must trust the Nexus registry as) Tj ET
+BT /F1 10 Tf 48 288 Td (an insecure registry unless you place Nexus behind HTTPS.) Tj ET
+BT /F3 8.5 Tf 58 270 Td (sudo nano /etc/docker/daemon.json) Tj ET
+BT /F1 10 Tf 48 252 Td (Use this JSON content, merging with any existing Docker daemon settings if needed.) Tj ET
+BT /F3 8.5 Tf 58 234 Td ({) Tj ET
+BT /F3 8.5 Tf 58 223 Td (  "insecure-registries": [) Tj ET
+BT /F3 8.5 Tf 58 212 Td (    "localhost:5000",) Tj ET
+BT /F3 8.5 Tf 58 201 Td (    "localhost:5001",) Tj ET
+BT /F3 8.5 Tf 58 190 Td (    "localhost:5002",) Tj ET
+BT /F3 8.5 Tf 58 179 Td (    "172.20.102.182:5000",) Tj ET
+BT /F3 8.5 Tf 58 168 Td (    "172.20.102.182:5001",) Tj ET
+BT /F3 8.5 Tf 58 157 Td (    "172.20.102.182:5002") Tj ET
+BT /F3 8.5 Tf 58 146 Td (  ]) Tj ET
+BT /F3 8.5 Tf 58 135 Td (}) Tj ET
+BT /F3 8.5 Tf 58 117 Td (sudo systemctl restart docker) Tj ET
+BT /F3 8.5 Tf 58 106 Td (docker info | grep -A20 "Insecure Registries) Tj ET
+BT /F2 10 Tf 48 88 Td (Expected result: localhost and 172.20.102.182 registry addresses appear under Docker) Tj ET
+BT /F2 10 Tf 48 75 Td (insecure registries.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 1) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Length 3688 >>
+stream
+BT /F2 14 Tf 48 794 Td (4. Login to Nexus Docker Registry) Tj ET
+BT /F3 8.5 Tf 58 774 Td (echo "$NEXUS_ADMIN_PASSWORD" | docker login localhost:5000 -u admin --password-stdin) Tj ET
+BT /F3 8.5 Tf 58 763 Td (echo "$NEXUS_ADMIN_PASSWORD" | docker login 172.20.102.182:5000 -u admin --password-) Tj ET
+BT /F3 8.5 Tf 58 752 Td (stdin) Tj ET
+BT /F2 10 Tf 48 734 Td (Expected result: Login Succeeded for both localhost and IP-based registry addresses.) Tj ET
+BT /F2 14 Tf 48 707 Td (5. Manual Docker Push and Pull Validation) Tj ET
+BT /F3 8.5 Tf 58 687 Td (docker pull alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 676 Td (docker tag alpine:3.20 localhost:5000/test/alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 665 Td (docker push localhost:5000/test/alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 654 Td (docker rmi localhost:5000/test/alpine:3.20 alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 643 Td (docker pull localhost:5000/test/alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 632 Td (docker images | grep "localhost:5000/test/alpine) Tj ET
+BT /F2 10 Tf 48 614 Td (Expected result: image pushes to Nexus hosted registry, can be removed locally, then pulled) Tj ET
+BT /F2 10 Tf 48 601 Td (back from Nexus.) Tj ET
+BT /F2 14 Tf 48 574 Td (6. Portal Docker Hub Fetch Workflow) Tj ET
+BT /F1 10 Tf 56 554 Td (1. Open Artifact Publishing in the portal.) Tj ET
+BT /F1 10 Tf 56 541 Td (2. Use Container Image by Name.) Tj ET
+BT /F1 10 Tf 56 528 Td (3. Set Source image to alpine:3.20.) Tj ET
+BT /F1 10 Tf 56 515 Td (4. Set Target image path to test/portal-alpine:3.20.) Tj ET
+BT /F1 10 Tf 56 502 Td (5. Set Repository to docker-hosted.) Tj ET
+BT /F1 10 Tf 56 489 Td (6. Click Publish Image.) Tj ET
+BT /F1 10 Tf 56 476 Td (7. Open Publishing History and click View Logs for the job.) Tj ET
+BT /F2 10 Tf 48 458 Td (Expected result: job status becomes SUCCESS and logs show pull, tag, login, and push) Tj ET
+BT /F2 10 Tf 48 445 Td (operations.) Tj ET
+BT /F3 8.5 Tf 58 427 Td (docker pull localhost:5000/test/portal-alpine:3.20) Tj ET
+BT /F3 8.5 Tf 58 416 Td (docker images | grep portal-alpine) Tj ET
+BT /F2 14 Tf 48 389 Td (7. Upload Locally Exported Docker Image) Tj ET
+BT /F3 8.5 Tf 58 369 Td (docker pull nginx:1.27-alpine) Tj ET
+BT /F3 8.5 Tf 58 358 Td (docker tag nginx:1.27-alpine local/nginx-upload-test:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 347 Td (docker save -o /tmp/nginx-upload-test.tar local/nginx-upload-test:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 336 Td (ls -lh /tmp/nginx-upload-test.tar) Tj ET
+BT /F1 10 Tf 56 318 Td (1. Open Artifact Publishing.) Tj ET
+BT /F1 10 Tf 56 305 Td (2. Use Container Image Archive.) Tj ET
+BT /F1 10 Tf 56 292 Td (3. Set Target image to test/nginx-upload-test:1.0.0.) Tj ET
+BT /F1 10 Tf 56 279 Td (4. Set Repository to docker-hosted.) Tj ET
+BT /F1 10 Tf 56 266 Td (5. Select /tmp/nginx-upload-test.tar.) Tj ET
+BT /F1 10 Tf 56 253 Td (6. Click Upload Archive.) Tj ET
+BT /F1 10 Tf 56 240 Td (7. Review Publishing History and View Logs.) Tj ET
+BT /F2 10 Tf 48 222 Td (Expected result: archive is loaded, tagged, pushed to Nexus, and the job finishes) Tj ET
+BT /F2 10 Tf 48 209 Td (successfully.) Tj ET
+BT /F3 8.5 Tf 58 191 Td (docker pull localhost:5000/test/nginx-upload-test:1.0.0) Tj ET
+BT /F2 14 Tf 48 164 Td (8. Python Package Fetch and Publish) Tj ET
+BT /F1 10 Tf 56 144 Td (1. Open Artifact Publishing.) Tj ET
+BT /F1 10 Tf 56 131 Td (2. Use Python Package Fetch.) Tj ET
+BT /F1 10 Tf 56 118 Td (3. Set Package name to requests.) Tj ET
+BT /F1 10 Tf 56 105 Td (4. Leave Version blank or set a known version such as 2.32.4.) Tj ET
+BT /F1 10 Tf 56 92 Td (5. Set Runtime to Python 3.) Tj ET
+BT /F1 10 Tf 56 79 Td (6. Set Repository to pypi-hosted.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 2) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 8 0 R >>
+endobj
+10 0 obj
+<< /Length 3687 >>
+stream
+BT /F1 10 Tf 56 794 Td (7. Keep Include dependencies enabled.) Tj ET
+BT /F1 10 Tf 56 781 Td (8. Click Fetch & Publish.) Tj ET
+BT /F1 10 Tf 56 768 Td (9. Open Publishing History and click View Logs.) Tj ET
+BT /F2 10 Tf 48 750 Td (Expected result: pip downloads package distributions, Nexus upload succeeds, status is) Tj ET
+BT /F2 10 Tf 48 737 Td (SUCCESS, and checksum metadata is recorded.) Tj ET
+BT /F1 10 Tf 48 719 Td (Validate through Nexus UI: open http://localhost:8081, browse pypi-hosted, and confirm) Tj ET
+BT /F1 10 Tf 48 706 Td (package files are present.) Tj ET
+BT /F3 8.5 Tf 58 688 Td (python3 -m venv /tmp/nexus-pip-test) Tj ET
+BT /F3 8.5 Tf 58 677 Td (source /tmp/nexus-pip-test/bin/activate) Tj ET
+BT /F3 8.5 Tf 58 666 Td (pip install --trusted-host localhost --index-url ) Tj ET
+BT /F3 8.5 Tf 58 655 Td (http://localhost:8081/repository/pypi-hosted/simple requests) Tj ET
+BT /F3 8.5 Tf 58 644 Td (python -c "import requests; print\(requests.__version__\)") Tj ET
+BT /F3 8.5 Tf 58 633 Td (deactivate) Tj ET
+BT /F2 14 Tf 48 606 Td (9. Debian Package Fetch and Publish) Tj ET
+BT /F1 10 Tf 56 586 Td (1. Open Artifact Publishing.) Tj ET
+BT /F1 10 Tf 56 573 Td (2. Use Debian Package Fetch.) Tj ET
+BT /F1 10 Tf 56 560 Td (3. Set Package name to curl.) Tj ET
+BT /F1 10 Tf 56 547 Td (4. Leave Version blank.) Tj ET
+BT /F1 10 Tf 56 534 Td (5. Select Ubuntu 24.04 Noble or Debian 12 Bookworm.) Tj ET
+BT /F1 10 Tf 56 521 Td (6. Set Repository to apt-internal-hosted.) Tj ET
+BT /F1 10 Tf 56 508 Td (7. Keep Include dependencies enabled.) Tj ET
+BT /F1 10 Tf 56 495 Td (8. Click Fetch & Publish.) Tj ET
+BT /F1 10 Tf 56 482 Td (9. Open Publishing History and click View Logs.) Tj ET
+BT /F2 10 Tf 48 464 Td (Expected result: apt metadata is fetched, .deb files are downloaded, Nexus upload succeeds,) Tj ET
+BT /F2 10 Tf 48 451 Td (and job status is SUCCESS.) Tj ET
+BT /F1 10 Tf 48 433 Td (Validate in Nexus UI by browsing apt-internal-hosted and confirming .deb artifacts are) Tj ET
+BT /F1 10 Tf 48 420 Td (present.) Tj ET
+BT /F2 14 Tf 48 393 Td (10. Publishing Logs and History) Tj ET
+BT /F1 10 Tf 56 373 Td (1. Open Artifact Publishing.) Tj ET
+BT /F1 10 Tf 56 360 Td (2. Confirm Publish Jobs, Running, Success, and Failed counters update.) Tj ET
+BT /F1 10 Tf 56 347 Td (3. Click View Logs on every publish job type you tested.) Tj ET
+BT /F1 10 Tf 56 334 Td (4. Confirm readable progress, success output, or error messages are displayed.) Tj ET
+BT /F2 10 Tf 48 316 Td (Expected result: no dead buttons; logs appear in the Publishing Logs panel; failures are) Tj ET
+BT /F2 10 Tf 48 303 Td (readable.) Tj ET
+BT /F2 14 Tf 48 276 Td (11. Deployment History and Reports) Tj ET
+BT /F1 10 Tf 56 256 Td (1. Open Deployment Wizard.) Tj ET
+BT /F1 10 Tf 56 243 Td (2. Select available Docker, Python, or Debian artifacts.) Tj ET
+BT /F1 10 Tf 56 230 Td (3. Proceed through preflight/security steps as applicable.) Tj ET
+BT /F1 10 Tf 56 217 Td (4. For local testing, keep remote deployment disabled if you do not want to deploy to) Tj ET
+BT /F1 10 Tf 56 204 Td (   another host.) Tj ET
+BT /F1 10 Tf 56 191 Td (5. Create the job.) Tj ET
+BT /F1 10 Tf 56 178 Td (6. Open History & Reports.) Tj ET
+BT /F1 10 Tf 56 165 Td (7. Test View Logs, HTML Report, PDF Report, and Refresh.) Tj ET
+BT /F2 10 Tf 48 147 Td (Expected result: job appears in history, logs display, and HTML/PDF reports open) Tj ET
+BT /F2 10 Tf 48 134 Td (successfully.) Tj ET
+BT /F2 14 Tf 48 107 Td (12. Security Center: Access Groups) Tj ET
+BT /F1 10 Tf 56 87 Td (1. Open Security Center.) Tj ET
+BT /F1 10 Tf 56 74 Td (2. Create Group Name: Test Pullers.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 3) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 10 0 R >>
+endobj
+12 0 obj
+<< /Length 3899 >>
+stream
+BT /F1 10 Tf 56 794 Td (3. Description: Temporary test group for approved pull clients.) Tj ET
+BT /F1 10 Tf 56 781 Td (4. Select docker_pull permission.) Tj ET
+BT /F1 10 Tf 56 768 Td (5. Click Save Group.) Tj ET
+BT /F1 10 Tf 56 755 Td (6. Click Edit, add pypi_read, and save again.) Tj ET
+BT /F2 10 Tf 48 737 Td (Expected result: group appears in Existing Groups, permissions update, and success feedback) Tj ET
+BT /F2 10 Tf 48 724 Td (appears.) Tj ET
+BT /F2 14 Tf 48 697 Td (13. Security Center: Trusted Account) Tj ET
+BT /F1 10 Tf 56 677 Td (1. Create Username / Service ID: ci-test-puller.) Tj ET
+BT /F1 10 Tf 56 664 Td (2. Account Type: Service account.) Tj ET
+BT /F1 10 Tf 56 651 Td (3. Display Name: CI Test Puller.) Tj ET
+BT /F1 10 Tf 56 638 Td (4. Email: ci-test-puller@example.local.) Tj ET
+BT /F1 10 Tf 56 625 Td (5. Enter a test password, or leave blank to generate one.) Tj ET
+BT /F1 10 Tf 56 612 Td (6. Keep Enabled checked.) Tj ET
+BT /F1 10 Tf 56 599 Td (7. Assign Test Pullers or Registry Readers.) Tj ET
+BT /F1 10 Tf 56 586 Td (8. Click Save Account and save the generated password if one is shown.) Tj ET
+BT /F1 10 Tf 56 573 Td (9. Click Sync Nexus Access.) Tj ET
+BT /F2 10 Tf 48 555 Td (Expected result: Nexus role/user sync succeeds and anonymous access is disabled.) Tj ET
+BT /F3 8.5 Tf 58 537 Td (docker logout localhost:5000 || true) Tj ET
+BT /F3 8.5 Tf 58 526 Td (echo 'THE_TEST_PASSWORD' | docker login localhost:5000 -u ci-test-puller --password-) Tj ET
+BT /F3 8.5 Tf 58 515 Td (stdin) Tj ET
+BT /F3 8.5 Tf 58 504 Td (docker pull localhost:5000/test/portal-alpine:3.20) Tj ET
+BT /F2 10 Tf 48 486 Td (Expected result: pull-only account can login and pull.) Tj ET
+BT /F3 8.5 Tf 58 468 Td (docker tag alpine:3.20 localhost:5000/test/should-not-push:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 457 Td (docker push localhost:5000/test/should-not-push:1.0.0) Tj ET
+BT /F2 10 Tf 48 439 Td (Expected result: Expected result for pull-only user: push is denied with unauthorized or) Tj ET
+BT /F2 10 Tf 48 426 Td (403.) Tj ET
+BT /F2 14 Tf 48 399 Td (14. Publisher Permission Test) Tj ET
+BT /F1 10 Tf 56 379 Td (1. Create group Test Publishers.) Tj ET
+BT /F1 10 Tf 56 366 Td (2. Select docker_pull, docker_push, raw_read, and raw_write.) Tj ET
+BT /F1 10 Tf 56 353 Td (3. Create account ci-test-publisher with a known password.) Tj ET
+BT /F1 10 Tf 56 340 Td (4. Assign Test Publishers.) Tj ET
+BT /F1 10 Tf 56 327 Td (5. Click Sync Nexus Access.) Tj ET
+BT /F3 8.5 Tf 58 309 Td (docker logout localhost:5000 || true) Tj ET
+BT /F3 8.5 Tf 58 298 Td (echo 'PUBLISHER_PASSWORD' | docker login localhost:5000 -u ci-test-publisher ) Tj ET
+BT /F3 8.5 Tf 58 287 Td (--password-stdin) Tj ET
+BT /F3 8.5 Tf 58 276 Td (docker tag alpine:3.20 localhost:5000/test/publisher-push:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 265 Td (docker push localhost:5000/test/publisher-push:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 254 Td (docker rmi localhost:5000/test/publisher-push:1.0.0) Tj ET
+BT /F3 8.5 Tf 58 243 Td (docker pull localhost:5000/test/publisher-push:1.0.0) Tj ET
+BT /F2 10 Tf 48 225 Td (Expected result: publisher account can push and pull.) Tj ET
+BT /F2 14 Tf 48 198 Td (15. Anonymous and Unauthorized Blocking) Tj ET
+BT /F1 10 Tf 48 178 Td (After Sync Nexus Access, anonymous Nexus access should be disabled.) Tj ET
+BT /F3 8.5 Tf 58 160 Td (docker logout localhost:5000 || true) Tj ET
+BT /F3 8.5 Tf 58 149 Td (curl -i http://localhost:5000/v2/) Tj ET
+BT /F3 8.5 Tf 58 138 Td (echo 'wrong-password' | docker login localhost:5000 -u ci-test-puller --password-) Tj ET
+BT /F3 8.5 Tf 58 127 Td (stdin) Tj ET
+BT /F3 8.5 Tf 58 116 Td (docker pull localhost:5000/test/portal-alpine:3.20) Tj ET
+BT /F2 10 Tf 48 98 Td (Expected result: unauthenticated registry access returns 401; wrong password fails;) Tj ET
+BT /F2 10 Tf 48 85 Td (unauthenticated pull is denied.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 4) Tj ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 12 0 R >>
+endobj
+14 0 obj
+<< /Length 3828 >>
+stream
+BT /F2 14 Tf 48 794 Td (16. Trusted IP Rules and Firewall Enforcement) Tj ET
+BT /F1 10 Tf 56 774 Td (1. In Security Center, add Rule Name: Admin Workstation.) Tj ET
+BT /F1 10 Tf 56 761 Td (2. Set IP / CIDR to 172.20.102.182/32.) Tj ET
+BT /F1 10 Tf 56 748 Td (3. Description: Local Ubuntu test workstation.) Tj ET
+BT /F1 10 Tf 56 735 Td (4. Keep Enabled checked.) Tj ET
+BT /F1 10 Tf 56 722 Td (5. Also add Rule Name: Localhost with IP / CIDR 127.0.0.1/32 if testing locally.) Tj ET
+BT /F1 10 Tf 56 709 Td (6. Click Preview Firewall.) Tj ET
+BT /F2 10 Tf 48 691 Td (Expected result: preview contains allow rules for trusted CIDRs followed by a DROP rule for) Tj ET
+BT /F2 10 Tf 48 678 Td (protected ports 8081, 5000, 5001, and 5002.) Tj ET
+BT /F1 10 Tf 48 660 Td (Important: Apply IP Firewall only after confirming your current admin IP is trusted. A wrong) Tj ET
+BT /F1 10 Tf 48 647 Td (CIDR can block your access to registry ports.) Tj ET
+BT /F1 10 Tf 56 629 Td (1. Click Apply IP Firewall.) Tj ET
+BT /F1 10 Tf 56 616 Td (2. Confirm Enforcement Status changes to APPLIED.) Tj ET
+BT /F3 8.5 Tf 58 598 Td (curl -i http://172.20.102.182:5000/v2/) Tj ET
+BT /F2 10 Tf 48 580 Td (Expected result: Expected result from approved host: HTTP 401 Unauthorized. This is good:) Tj ET
+BT /F2 10 Tf 48 567 Td (network access is allowed, authentication is required.) Tj ET
+BT /F3 8.5 Tf 58 549 Td (echo "$NEXUS_ADMIN_PASSWORD" | docker login 172.20.102.182:5000 -u admin --password-) Tj ET
+BT /F3 8.5 Tf 58 538 Td (stdin) Tj ET
+BT /F3 8.5 Tf 58 527 Td (docker pull 172.20.102.182:5000/test/portal-alpine:3.20) Tj ET
+BT /F2 14 Tf 48 500 Td (17. Untrusted Client Blocking) Tj ET
+BT /F1 10 Tf 48 480 Td (Use a second machine or VM that is not in the trusted IP list.) Tj ET
+BT /F3 8.5 Tf 58 462 Td (curl -m 5 -i http://172.20.102.182:5000/v2/) Tj ET
+BT /F3 8.5 Tf 58 451 Td (docker login 172.20.102.182:5000 -u admin) Tj ET
+BT /F2 10 Tf 48 433 Td (Expected result: Expected result from untrusted client: timeout, connection failure, or) Tj ET
+BT /F2 10 Tf 48 420 Td (blocked traffic. If it receives HTTP 401, the firewall did not block it and only) Tj ET
+BT /F2 10 Tf 48 407 Td (authentication blocked it.) Tj ET
+BT /F3 8.5 Tf 58 389 Td (sudo iptables -S PORTAL_NEXUS_ACL) Tj ET
+BT /F3 8.5 Tf 58 378 Td (sudo iptables -S | grep PORTAL_NEXUS) Tj ET
+BT /F2 14 Tf 48 351 Td (18. Security Center Edit/Delete Workflow) Tj ET
+BT /F1 10 Tf 56 331 Td (1. For Groups, Trusted Accounts, and Trusted IP Rules: create a record, edit it, save it,) Tj ET
+BT /F1 10 Tf 56 318 Td (   clear the form, delete it, then refresh the page.) Tj ET
+BT /F1 10 Tf 56 305 Td (2. Confirm edit forms populate correctly.) Tj ET
+BT /F1 10 Tf 56 292 Td (3. Confirm delete asks for confirmation and removes the record.) Tj ET
+BT /F1 10 Tf 56 279 Td (4. Confirm disabled accounts remain visible but cannot authenticate after sync.) Tj ET
+BT /F2 14 Tf 48 252 Td (19. Audit Log) Tj ET
+BT /F1 10 Tf 56 232 Td (1. Open Audit Log.) Tj ET
+BT /F1 10 Tf 56 219 Td (2. Click Refresh.) Tj ET
+BT /F1 10 Tf 56 206 Td (3. Look for LOGIN_SUCCESS, CREATE_SERVER, DELETE_SERVER, CREATE_IP_RULE, DELETE_IP_RULE,) Tj ET
+BT /F1 10 Tf 56 193 Td (   CREATE_ACCESS_GROUP, CREATE_ACCESS_PRINCIPAL, SYNC_NEXUS_ACCESS, and CREATE_JOB) Tj ET
+BT /F1 10 Tf 56 180 Td (   entries.) Tj ET
+BT /F2 14 Tf 48 153 Td (20. Storage Guard) Tj ET
+BT /F1 10 Tf 56 133 Td (1. Open Storage Guard.) Tj ET
+BT /F1 10 Tf 56 120 Td (2. Click Refresh.) Tj ET
+BT /F1 10 Tf 56 107 Td (3. Confirm workspace, Nexus, PostgreSQL portal database, bundle, report, and cleanup) Tj ET
+BT /F1 10 Tf 56 94 Td (   retention metrics are visible.) Tj ET
+BT /F1 10 Tf 56 81 Td (4. Run Cleanup Policy only if you are comfortable deleting old generated bundles/reports.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 5) Tj ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 14 0 R >>
+endobj
+16 0 obj
+<< /Length 3125 >>
+stream
+BT /F2 14 Tf 48 794 Td (21. Troubleshooting Commands) Tj ET
+BT /F3 8.5 Tf 58 774 Td (docker logs airgap-portal --tail=200) Tj ET
+BT /F3 8.5 Tf 58 763 Td (docker logs airgap-nexus --tail=200) Tj ET
+BT /F3 8.5 Tf 58 752 Td (docker compose ps postgres) Tj ET
+BT /F3 8.5 Tf 58 741 Td (docker exec airgap-postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB") Tj ET
+BT /F3 8.5 Tf 58 730 Td (docker exec airgap-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\\dt') Tj ET
+BT /F3 8.5 Tf 58 719 Td (ss -lntp | grep -E '5000|5001|5002|8081|8095') Tj ET
+BT /F3 8.5 Tf 58 708 Td (docker info | grep -A20 "Insecure Registries") Tj ET
+BT /F3 8.5 Tf 58 697 Td (sudo iptables -S | grep PORTAL_NEXUS) Tj ET
+BT /F3 8.5 Tf 58 686 Td (sudo iptables -S PORTAL_NEXUS_ACL) Tj ET
+BT /F3 8.5 Tf 58 675 Td (docker logout localhost:5000 || true) Tj ET
+BT /F3 8.5 Tf 58 664 Td (docker logout 172.20.102.182:5000 || true) Tj ET
+BT /F2 14 Tf 48 637 Td (22. Common Failure Patterns) Tj ET
+BT /F1 10 Tf 48 617 Td (Docker says server gave HTTP response to HTTPS client: add the registry to Docker insecure-) Tj ET
+BT /F1 10 Tf 48 604 Td (registries and restart Docker.) Tj ET
+BT /F1 10 Tf 48 586 Td (Portal publishing job fails pulling from Docker Hub or apt/pip sources: verify internet) Tj ET
+BT /F1 10 Tf 48 573 Td (access from the portal container and check portal logs.) Tj ET
+BT /F1 10 Tf 48 555 Td (Docker login succeeds for untrusted client after firewall apply: verify the client IP is not) Tj ET
+BT /F1 10 Tf 48 542 Td (accidentally covered by a trusted CIDR and inspect PORTAL_NEXUS_ACL rules.) Tj ET
+BT /F1 10 Tf 48 524 Td (Pull-only user can push: verify the account is assigned only to a pull-only group, then) Tj ET
+BT /F1 10 Tf 48 511 Td (click Sync Nexus Access again.) Tj ET
+BT /F1 10 Tf 48 493 Td (Nexus API errors during sync: confirm Nexus is healthy and NEXUS_ADMIN_PASSWORD in .env is) Tj ET
+BT /F1 10 Tf 48 480 Td (correct.) Tj ET
+BT /F2 14 Tf 48 453 Td (23. Expected Final Result) Tj ET
+BT /F1 10 Tf 56 433 Td (1. Portal works at http://localhost:8095.) Tj ET
+BT /F1 10 Tf 56 420 Td (2. Nexus works at http://localhost:8081.) Tj ET
+BT /F1 10 Tf 56 407 Td (3. Docker push and pull work for authorized users.) Tj ET
+BT /F1 10 Tf 56 394 Td (4. Portal publishing jobs succeed for Docker image fetch, Docker archive upload, Python) Tj ET
+BT /F1 10 Tf 56 381 Td (   package fetch, and Debian package fetch.) Tj ET
+BT /F1 10 Tf 56 368 Td (5. Publishing logs, history, reports, audit log, and Storage Guard are visible.) Tj ET
+BT /F1 10 Tf 56 355 Td (6. Security Center create/edit/delete workflows work.) Tj ET
+BT /F1 10 Tf 56 342 Td (7. Nexus anonymous access is disabled after sync.) Tj ET
+BT /F1 10 Tf 56 329 Td (8. Unauthorized users cannot authenticate.) Tj ET
+BT /F1 10 Tf 56 316 Td (9. Pull-only users cannot push.) Tj ET
+BT /F1 10 Tf 56 303 Td (10. Publisher users can push and pull.) Tj ET
+BT /F1 10 Tf 56 290 Td (11. Trusted IPs can reach registry ports, while untrusted IPs are blocked at network) Tj ET
+BT /F1 10 Tf 56 277 Td (   level.) Tj ET
+BT /F1 8 Tf 48 28 Td (Nexus Portal Ubuntu Testing Guide | Page 6) Tj ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 16 0 R >>
+endobj
+xref
+0 18
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000155 00000 n 
+0000000225 00000 n 
+0000000300 00000 n 
+0000000368 00000 n 
+0000004124 00000 n 
+0000004270 00000 n 
+0000008010 00000 n 
+0000008156 00000 n 
+0000011896 00000 n 
+0000012044 00000 n 
+0000015996 00000 n 
+0000016144 00000 n 
+0000020025 00000 n 
+0000020173 00000 n 
+0000023351 00000 n 
+trailer
+<< /Size 18 /Root 1 0 R >>
+startxref
+23499
+%%EOF

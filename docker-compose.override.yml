@@ -9,7 +9,8 @@ services:
       - .env
     environment:
       APP_WORKSPACE: /workspace
-      PORTAL_DB_PATH: /workspace/data/portal/portal.db
+      PORTAL_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NEXUS_URL: http://nexus:8081
     ports:
       - "8095:8095"
     volumes:
@@ -18,7 +19,10 @@ services:
     networks:
       - platform
     depends_on:
-      - nexus
+      postgres:
+        condition: service_healthy
+      nexus:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/health', timeout=3)\""]
       interval: 30s
@@ -41,6 +45,13 @@ services:
       - traefik.http.routers.portal.rule=Host(`portal.local`) || Host(`artifact.local`)
       - traefik.http.routers.portal.entrypoints=web
       - traefik.http.services.portal.loadbalancer.server.port=8095
+
+  postgres:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   nexus:
     stop_grace_period: 60s
