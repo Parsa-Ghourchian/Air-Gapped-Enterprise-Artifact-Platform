@@ -48,6 +48,8 @@ NEXUS_DOCKER_GROUP = os.getenv("NEXUS_DOCKER_GROUP", "localhost:5002")
 NEXUS_PYPI_HOSTED = os.getenv("NEXUS_PYPI_HOSTED", "pypi-hosted")
 NEXUS_APT_HOSTED = os.getenv("NEXUS_APT_HOSTED", "apt-internal-hosted")
 NEXUS_RAW_OFFLINE_BUNDLES = os.getenv("NEXUS_RAW_OFFLINE_BUNDLES", "raw-offline-bundles")
+NEXUS_APT_SIGNING_KEYPAIR = os.getenv("NEXUS_APT_SIGNING_KEYPAIR", "")
+NEXUS_APT_SIGNING_PASSPHRASE = os.getenv("NEXUS_APT_SIGNING_PASSPHRASE", "")
 _FIREWALL_HELPER_IMAGE = os.getenv("NEXUS_FIREWALL_HELPER_IMAGE", "").strip()
 NEXUS_FIREWALL_HELPER_IMAGE = PORTAL_IMAGE if not _FIREWALL_HELPER_IMAGE or _FIREWALL_HELPER_IMAGE == "alpine" or _FIREWALL_HELPER_IMAGE.startswith("alpine:") else _FIREWALL_HELPER_IMAGE
 NEXUS_PROTECTED_PORTS = [int(x) for x in os.getenv("NEXUS_PROTECTED_PORTS", "8081,5000,5001,5002").split(",") if x.strip()]
@@ -193,7 +195,7 @@ class DockerPublishIn(BaseModel):
 
 
 class PythonPackageFetchIn(BaseModel):
-    package_name: str = Field(min_length=1, max_length=160, pattern=r"^[A-Za-z0-9_.-]+$")
+    package_name: str = Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_.-]+(\[[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*\])?$")
     package_version: str = Field(default="", max_length=80)
     python_version: Literal["python3", "python2"] = "python3"
     repository: str = Field(default=NEXUS_PYPI_HOSTED, max_length=80)
@@ -1050,12 +1052,65 @@ def docker_image_exists_in_nexus(target_ref: str, job_id: str) -> bool:
         return False
 
 
+def apt_signing_keypair(job_id: str | None = None) -> tuple[str, str]:
+    if NEXUS_APT_SIGNING_KEYPAIR.strip():
+        return NEXUS_APT_SIGNING_KEYPAIR, NEXUS_APT_SIGNING_PASSPHRASE
+
+    if not shutil.which("gpg"):
+        raise RuntimeError("gnupg is required to auto-create Nexus APT hosted repositories. Configure NEXUS_APT_SIGNING_KEYPAIR or rebuild the portal image with gnupg.")
+
+    secret_dir = APP_WORKSPACE / ".portal-secrets" / "apt-signing"
+    gpg_home = secret_dir / "gnupg"
+    key_path = secret_dir / "nexus-apt-signing-private.asc"
+    secret_dir.mkdir(parents=True, exist_ok=True)
+    gpg_home.mkdir(parents=True, exist_ok=True)
+    gpg_home.chmod(0o700)
+
+    if not key_path.exists():
+        if job_id:
+            log_publish(job_id, "INFO", "Generating local Nexus APT signing key for hosted repository metadata.")
+        batch = """
+Key-Type: RSA
+Key-Length: 2048
+Name-Real: Nexus Portal APT Signing
+Name-Email: apt-signing@local.invalid
+Expire-Date: 0
+%no-protection
+%commit
+"""
+        subprocess.run(
+            ["gpg", "--batch", "--homedir", str(gpg_home), "--generate-key"],
+            input=batch,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            timeout=120,
+        )
+        export = subprocess.run(
+            ["gpg", "--batch", "--homedir", str(gpg_home), "--armor", "--export-secret-keys", "apt-signing@local.invalid"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            timeout=60,
+        )
+        key_path.write_text(export.stdout)
+        key_path.chmod(0o600)
+
+    keypair = key_path.read_text().strip()
+    if not keypair:
+        raise RuntimeError(f"APT signing keypair is empty: {key_path}")
+    return keypair, ""
+
+
 def ensure_apt_hosted_repository(job_id: str, repository: str) -> None:
     status, _ = nexus_request("GET", f"/service/rest/v1/repositories/{repository}", expected={200, 404})
     if status == 200:
         return
 
     log_publish(job_id, "INFO", f"Creating hosted APT repository: {repository}")
+    keypair, passphrase = apt_signing_keypair(job_id)
     body = {
         "name": repository,
         "online": True,
@@ -1067,6 +1122,10 @@ def ensure_apt_hosted_repository(job_id: str, repository: str) -> None:
         "apt": {
             "distribution": "internal",
             "flat": False,
+        },
+        "aptSigning": {
+            "keypair": keypair,
+            "passphrase": passphrase,
         },
     }
     nexus_request("POST", "/service/rest/v1/repositories/apt/hosted", json_body=body, expected={200, 201, 204})
@@ -1087,15 +1146,30 @@ def upload_component_file(job_id: str, repository: str, field_name: str, file_pa
         )
 
     if response.status_code not in {200, 201, 204}:
-        raise RuntimeError(f"Nexus upload failed: HTTP {response.status_code} {response.text[:500]}")
+        detail = response.text.strip()
+        lower_detail = detail.lower()
+        duplicate_markers = [
+            "already exists",
+            "does not allow updating",
+            "cannot be updated",
+            "duplicate asset",
+        ]
+        if response.status_code in {400, 409} and any(marker in lower_detail for marker in duplicate_markers):
+            log_publish(job_id, "WARN", f"Skipping existing Nexus asset: {file_path.name}")
+            return {"repository": repository, "filename": file_path.name, "status": "SKIPPED_EXISTS", "status_code": response.status_code}
+        raise RuntimeError(f"Nexus upload failed: HTTP {response.status_code} {detail[:500]}")
 
     return {"repository": repository, "filename": file_path.name, "status_code": response.status_code}
 
 
 def python_requirement(package_name: str, package_version: str) -> str:
-    if package_version.strip():
-        return f"{package_name.strip()}=={package_version.strip()}"
-    return package_name.strip()
+    package = package_name.strip()
+    version = package_version.strip()
+    if not version:
+        return package
+    if version.startswith(("==", "!=", ">=", "<=", "~=", ">", "<")):
+        return f"{package}{version}"
+    return f"{package}=={version}"
 
 
 def publish_downloaded_python_files(job_id: str, repository: str, out_dir: Path) -> list[dict[str, Any]]:
@@ -1124,11 +1198,13 @@ def run_python_fetch_publish_job(job_id: str, payload: dict[str, Any]) -> None:
         log_publish(job_id, "INFO", f"Dependencies: {'included' if include_deps else 'not included'}")
 
         if python_version == "python2":
+            docker_login_registry(NEXUS_DOCKER_GROUP, job_id, log_publish)
             host_out = host_path_for(out_dir)
+            python2_image = group_image_ref(PYTHON2_DOCKER_IMAGE)
             command = (
                 "python -m ensurepip || true; "
                 "python -m pip install --upgrade 'pip<21' 'setuptools<45' 'wheel<0.38'; "
-                f"python -m pip download {' ' if include_deps else '--no-deps '}--no-cache-dir "
+                f"python -m pip download {' ' if include_deps else '--no-deps '}--no-cache-dir --retries 3 --timeout 60 --prefer-binary "
                 f"-d /out {shlex.quote(requirement)}"
             )
             run_publish_cmd(
@@ -1138,7 +1214,7 @@ def run_python_fetch_publish_job(job_id: str, payload: dict[str, Any]) -> None:
                     "--rm",
                     "-v",
                     f"{host_out}:/out",
-                    PYTHON2_DOCKER_IMAGE,
+                    python2_image,
                     "bash",
                     "-lc",
                     command,
@@ -1147,7 +1223,7 @@ def run_python_fetch_publish_job(job_id: str, payload: dict[str, Any]) -> None:
                 timeout=900,
             )
         else:
-            cmd = ["python", "-m", "pip", "download", "--no-cache-dir", "-d", str(out_dir)]
+            cmd = ["python", "-m", "pip", "download", "--no-cache-dir", "--retries", "3", "--timeout", "60", "--prefer-binary", "-d", str(out_dir)]
             if not include_deps:
                 cmd.append("--no-deps")
             cmd.append(requirement)
@@ -1172,15 +1248,35 @@ def apt_fetch_script(target_cfg: dict[str, str], package_spec: str, include_depe
     codename = target_cfg["codename"]
     components = target_cfg["components"]
     package_q = shlex.quote(package_spec)
-    deps_cmd = f"apt-get install -y --download-only --no-install-recommends {package_q}; cp -a /var/cache/apt/archives/*.deb /out/ 2>/dev/null || true"
-    single_cmd = f"cd /out && apt-get download {package_q}"
-    fetch_cmd = deps_cmd if include_dependencies else single_cmd
+    package_name_q = shlex.quote(package_spec.split("=", 1)[0])
+    dependency_fetch = f"""
+PACKAGE_NAME={package_name_q}
+apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances "$PACKAGE_NAME" \
+  | awk '
+      /^[a-z0-9][a-z0-9+.-]*(:[a-z0-9]+)?$/ {{ print $1; next }}
+      /^[[:space:]]*(Pre)?Depends:/ && $2 !~ /^</ {{ print $2 }}
+    ' \
+  | sed 's/[|,]$//' \
+  | grep -E '^[a-z0-9][a-z0-9+.-]*(:[a-z0-9]+)?$' \
+  | sort -u > /tmp/apt-package-list.txt
+grep -qxF "$PACKAGE_NAME" /tmp/apt-package-list.txt || echo "$PACKAGE_NAME" >> /tmp/apt-package-list.txt
+while IFS= read -r pkg; do
+  [ -n "$pkg" ] || continue
+  apt-get download "$pkg" || echo "WARN: could not download dependency candidate $pkg"
+done < /tmp/apt-package-list.txt
+apt-get download {package_q}
+"""
+    single_fetch = f"apt-get download {package_q}"
+    fetch_cmd = dependency_fetch if include_dependencies else single_fetch
 
     return f"""
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
 DISTRO={shlex.quote(distro)}
 CODENAME={shlex.quote(codename)}
 COMPONENTS={shlex.quote(components)}
+
+rm -f /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list
 
 if [[ "$DISTRO" == "ubuntu" ]]; then
   if [[ "$CODENAME" == "plucky" ]]; then
@@ -1205,8 +1301,9 @@ deb [trusted=yes] $SECURITY_URL $CODENAME-security $COMPONENTS
 EOF
 fi
 
-apt-get update
 mkdir -p /out
+cd /out
+apt-get update -o Acquire::Retries=3
 {fetch_cmd}
 """
 
@@ -1230,6 +1327,8 @@ def run_debian_fetch_publish_job(job_id: str, payload: dict[str, Any]) -> None:
         log_publish(job_id, "INFO", f"Target release: {target_release} ({target_cfg['label']})")
         log_publish(job_id, "INFO", f"Dependencies: {'included' if include_deps else 'not included'}")
 
+        docker_login_registry(NEXUS_DOCKER_GROUP, job_id, log_publish)
+        fetch_image = group_image_ref(target_cfg["image"])
         run_publish_cmd(
             [
                 "docker",
@@ -1237,7 +1336,7 @@ def run_debian_fetch_publish_job(job_id: str, payload: dict[str, Any]) -> None:
                 "--rm",
                 "-v",
                 f"{host_out}:/out",
-                target_cfg["image"],
+                fetch_image,
                 "bash",
                 "-lc",
                 apt_fetch_script(target_cfg, package_spec, include_deps),
@@ -3431,9 +3530,12 @@ def api_publish_jobs(user: str = Depends(current_user)):
 
 
 @app.get("/api/publish/jobs/{job_id}/logs")
-def api_publish_job_logs(job_id: str, user: str = Depends(current_user)):
+def api_publish_job_logs(job_id: str, after_id: int = 0, user: str = Depends(current_user)):
     with db_conn() as conn:
-        rows = conn.execute("SELECT ts, level, message FROM publish_logs WHERE job_id=? ORDER BY id ASC", (job_id,)).fetchall()
+        rows = conn.execute(
+            "SELECT id, ts, level, message FROM publish_logs WHERE job_id=? AND id>? ORDER BY id ASC",
+            (job_id, after_id),
+        ).fetchall()
     return [row_to_dict(r) for r in rows]
 
 

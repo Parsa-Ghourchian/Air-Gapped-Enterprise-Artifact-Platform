@@ -10,6 +10,7 @@ reports/
 published-artifacts/
 apt-mini-repos/
 secrets/
+.portal-secrets/
 
 # Local tool cache
 .venv/

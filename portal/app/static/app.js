@@ -8,6 +8,8 @@ const state = {
   security: null,
   accessControl: null,
   selectedPublishJob: null,
+  selectedPublishLogLastId: 0,
+  selectedPublishLogText: "",
 };
 
 function cookie(name) {
@@ -576,14 +578,45 @@ async function loadPublishJobs() {
   if (!jobs.length) el.innerHTML = `<div class="muted">No publish jobs yet.</div>`;
 }
 
-async function viewPublishLogs(jobId) {
-  state.selectedPublishJob = jobId;
-  $("publishLogs").textContent = "Loading logs...";
+function publishLogLine(log) {
+  return `[${log.ts}] [${log.level}] ${log.message}`;
+}
+
+function isScrolledNearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 32;
+}
+
+async function viewPublishLogs(jobId, options = {}) {
+  const reset = options.reset || state.selectedPublishJob !== jobId;
+  const el = $("publishLogs");
+
+  if (reset) {
+    state.selectedPublishJob = jobId;
+    state.selectedPublishLogLastId = 0;
+    state.selectedPublishLogText = "";
+    el.textContent = "Loading logs...";
+  }
+
   try {
-    const logs = await api(`/api/publish/jobs/${jobId}/logs`);
-    $("publishLogs").textContent = logs.map(l => `[${l.ts}] [${l.level}] ${l.message}`).join("\n") || "No logs yet.";
+    const atBottom = isScrolledNearBottom(el);
+    const after = reset ? 0 : state.selectedPublishLogLastId;
+    const logs = await api(`/api/publish/jobs/${jobId}/logs${after ? `?after_id=${after}` : ""}`);
+
+    if (!logs.length) {
+      if (!state.selectedPublishLogText) el.textContent = "No logs yet.";
+      return;
+    }
+
+    const newText = logs.map(publishLogLine).join("\n");
+    state.selectedPublishLogText = state.selectedPublishLogText ? `${state.selectedPublishLogText}\n${newText}` : newText;
+    state.selectedPublishLogLastId = logs[logs.length - 1].id || state.selectedPublishLogLastId;
+    el.textContent = state.selectedPublishLogText;
+
+    if (reset || atBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
   } catch (err) {
-    $("publishLogs").textContent = `FAILED: ${err.message}`;
+    el.textContent = `FAILED: ${err.message}`;
     toast("Failed to load publish logs");
   }
 }
@@ -700,7 +733,7 @@ $("publishJobsList").addEventListener("click", async (e) => {
   e.preventDefault();
 
   if (btn.dataset.publishAction === "view-logs") {
-    await viewPublishLogs(btn.dataset.publishId);
+    await viewPublishLogs(btn.dataset.publishId, { reset: true });
   }
 });
 
@@ -877,7 +910,10 @@ $("createJobBtn").addEventListener("click", async () => {
 $("refreshJobsBtn").addEventListener("click", loadJobs);
 $("refreshAuditBtn").addEventListener("click", loadAudit);
 $("refreshStorageBtn").addEventListener("click", loadStorage);
-$("refreshPublishBtn").addEventListener("click", loadPublishJobs);
+$("refreshPublishBtn").addEventListener("click", async () => {
+  await loadPublishJobs();
+  if (state.selectedPublishJob) await viewPublishLogs(state.selectedPublishJob);
+});
 
 $("resetGroupFormBtn").addEventListener("click", resetAccessGroupForm);
 $("resetPrincipalFormBtn").addEventListener("click", resetAccessPrincipalForm);
@@ -1014,7 +1050,7 @@ $("publishDockerForm").addEventListener("submit", async (e) => {
     $("publishDockerResult").textContent = `Publish job created: ${res.id}`;
     toast("Docker publish started");
     await loadPublishJobs();
-    viewPublishLogs(res.id);
+    viewPublishLogs(res.id, { reset: true });
   } catch (err) {
     $("publishDockerResult").textContent = `FAILED: ${err.message}`;
   }
@@ -1035,7 +1071,7 @@ $("publishDockerArchiveForm").addEventListener("submit", async (e) => {
     $("publishDockerArchiveFile").value = "";
     toast("Docker archive publish started");
     await loadPublishJobs();
-    viewPublishLogs(res.id);
+    viewPublishLogs(res.id, { reset: true });
   } catch (err) {
     $("publishDockerArchiveResult").textContent = `FAILED: ${err.message}`;
   }
@@ -1058,7 +1094,7 @@ $("publishPythonForm").addEventListener("submit", async (e) => {
     $("publishPythonResult").textContent = `Publish job created: ${res.id}`;
     toast("Python fetch started");
     await loadPublishJobs();
-    viewPublishLogs(res.id);
+    viewPublishLogs(res.id, { reset: true });
   } catch (err) {
     $("publishPythonResult").textContent = `FAILED: ${err.message}`;
   }
@@ -1081,7 +1117,7 @@ $("publishDebianForm").addEventListener("submit", async (e) => {
     $("publishDebianResult").textContent = `Publish job created: ${res.id}`;
     toast("Debian fetch started");
     await loadPublishJobs();
-    viewPublishLogs(res.id);
+    viewPublishLogs(res.id, { reset: true });
   } catch (err) {
     $("publishDebianResult").textContent = `FAILED: ${err.message}`;
   }

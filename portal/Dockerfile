@@ -11,7 +11,7 @@ ENV PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates bash tar gzip openssh-client iptables \
+  && apt-get install -y --no-install-recommends ca-certificates bash tar gzip openssh-client iptables gnupg \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
