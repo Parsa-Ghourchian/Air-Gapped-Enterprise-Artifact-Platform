@@ -84,10 +84,7 @@ services:
       retries: 30
       start_period: 120s
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.nexus.rule=Host(`nexus.local`)
-      - traefik.http.routers.nexus.entrypoints=web
-      - traefik.http.services.nexus.loadbalancer.server.port=8081
+      - traefik.enable=false
 
   prometheus:
     image: ${PROMETHEUS_IMAGE}

@@ -115,13 +115,20 @@ create_repo() {
   local repo_name="$1"
   local endpoint="$2"
   local json_file="$3"
+  local method="POST"
+  local url="${NEXUS_URL}/service/rest/v1/repositories/${endpoint}"
+  local expected_a="201"
+  local expected_b="204"
 
   if repo_exists "$repo_name"; then
-    echo "SKIP: ${repo_name} already exists."
-    return 0
+    echo "UPDATE: ${repo_name}"
+    method="PUT"
+    url="${NEXUS_URL}/service/rest/v1/repositories/${endpoint}/${repo_name}"
+    expected_a="200"
+    expected_b="204"
+  else
+    echo "CREATE: ${repo_name}"
   fi
-
-  echo "CREATE: ${repo_name}"
 
   local response_file
   response_file="$(mktemp)"
@@ -130,16 +137,16 @@ create_repo() {
   status_code="$(
     curl -sS \
       -u "$AUTH" \
-      -X POST \
+      -X "$method" \
       -H "Content-Type: application/json" \
       --data @"${json_file}" \
       -o "$response_file" \
       -w "%{http_code}" \
-      "${NEXUS_URL}/service/rest/v1/repositories/${endpoint}"
+      "$url"
   )"
 
-  if [[ "$status_code" != "201" && "$status_code" != "204" ]]; then
-    echo "ERROR: Failed to create ${repo_name}. HTTP ${status_code}"
+  if [[ "$status_code" != "$expected_a" && "$status_code" != "$expected_b" ]]; then
+    echo "ERROR: Failed to ${method} ${repo_name}. HTTP ${status_code}"
     cat "$response_file"
     rm -f "$response_file"
     exit 1
@@ -147,6 +154,15 @@ create_repo() {
 
   rm -f "$response_file"
 }
+
+echo "Disabling Nexus anonymous access..."
+curl -fsS \
+  -u "$AUTH" \
+  -X PUT \
+  -H "Content-Type: application/json" \
+  --data '{"enabled":false,"userId":"anonymous","realmName":"NexusAuthorizingRealm"}' \
+  "${NEXUS_URL}/service/rest/v1/security/anonymous" >/dev/null
+echo "Anonymous access is disabled."
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT

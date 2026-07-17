@@ -22,11 +22,42 @@ echo "Target Nexus Docker hosted registry: ${TARGET_REGISTRY}"
 echo "Image list: ${IMAGE_FILE}"
 echo
 
+nexus_image_path() {
+  local image="$1"
+  local first="${image%%/*}"
+  local rest=""
+
+  if [[ "$image" == */* && ( "$first" == *.* || "$first" == *:* || "$first" == "localhost" ) ]]; then
+    rest="${image#*/}"
+    case "$first" in
+      docker.io|index.docker.io|registry-1.docker.io)
+        image="$rest"
+        ;;
+      *)
+        image="${first}/${rest}"
+        ;;
+    esac
+  fi
+
+  local name_without_digest="${image%%@*}"
+  local name_without_tag="$name_without_digest"
+  local last_component="${name_without_digest##*/}"
+  if [[ "$last_component" == *:* ]]; then
+    name_without_tag="${name_without_digest%:*}"
+  fi
+
+  if [[ "$name_without_tag" != */* ]]; then
+    image="library/${image}"
+  fi
+
+  printf '%s\n' "$image"
+}
+
 while IFS= read -r image || [[ -n "$image" ]]; do
   [[ -z "$image" ]] && continue
   [[ "$image" =~ ^# ]] && continue
 
-  target="${TARGET_REGISTRY}/${image}"
+  target="${TARGET_REGISTRY}/$(nexus_image_path "$image")"
 
   echo "Pulling: ${image}"
   docker pull "$image"

@@ -136,6 +136,7 @@ NEXUS_PYPI_HOSTED=pypi-hosted
 NEXUS_APT_HOSTED=apt-internal-hosted
 NEXUS_RAW_OFFLINE_BUNDLES=raw-offline-bundles
 NEXUS_PROTECTED_PORTS=8081,5000,5001,5002
+NEXUS_FIREWALL_HELPER_IMAGE=airgap-deployment-portal:1.0.0
 
 POSTGRES_IMAGE=postgres:18-alpine
 POSTGRES_DB=nexus_portal
@@ -164,6 +165,8 @@ PORTAL_BLOCK_LATEST_TAG=true
 PORTAL_BLOCK_UNPINNED_PACKAGES=true
 PORTAL_BLOCK_UNSAFE_APT=true
 PORTAL_REQUIRE_SECURITY_GATE=true
+PORTAL_ALLOW_PUBLIC_DOCKER_FALLBACK=false
+PORTAL_ENFORCE_FIREWALL_ON_STARTUP=true
 PORTAL_MIN_FREE_DISK_MB=2048
 PORTAL_CLEANUP_KEEP_DAYS=14
 ```
@@ -263,7 +266,7 @@ Unauthenticated clients should receive `401 Unauthorized` if network access is a
 
 ## Docker Client Configuration
 
-For local HTTP registry testing on Ubuntu, configure Docker insecure registries:
+For local HTTP registry testing on Ubuntu, configure Docker insecure registries and use the Nexus Docker group as the Docker Hub mirror:
 
 ```bash
 sudo nano /etc/docker/daemon.json
@@ -273,6 +276,9 @@ Example:
 
 ```json
 {
+  "registry-mirrors": [
+    "http://localhost:5002"
+  ],
   "insecure-registries": [
     "localhost:5000",
     "localhost:5001",
@@ -285,7 +291,14 @@ Restart Docker:
 
 ```bash
 sudo systemctl restart docker
-docker info | grep -A20 "Insecure Registries"
+docker info | grep -A20 -E "Registry Mirrors|Insecure Registries"
+```
+
+Docker will still display canonical Docker Hub names such as `docker.io/library/busybox:latest` when you run `docker pull busybox`. To verify Nexus directly, pull through the group registry:
+
+```bash
+echo "$NEXUS_ADMIN_PASSWORD" | docker login localhost:5002 -u admin --password-stdin
+docker pull localhost:5002/library/busybox:latest
 ```
 
 Login and smoke-test:

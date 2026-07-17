@@ -16,7 +16,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from urllib.parse import quote
 
 import paramiko
@@ -33,6 +33,7 @@ from app.database import close_pool, db_conn, db_ping, row_to_dict
 APP_WORKSPACE = Path(os.getenv("APP_WORKSPACE", "/workspace"))
 HOST_PROJECT_ROOT = os.getenv("HOST_PROJECT_ROOT", "")
 APP_VERSION = os.getenv("PORTAL_VERSION", "1.0.0")
+PORTAL_IMAGE = os.getenv("PORTAL_IMAGE", "airgap-deployment-portal:1.0.0")
 
 BUNDLES_ROOT = APP_WORKSPACE / "offline-bundles/portal-jobs"
 REPORTS_ROOT = APP_WORKSPACE / "reports/jobs"
@@ -42,11 +43,13 @@ PUBLISH_ROOT = APP_WORKSPACE / "published-artifacts/portal-jobs"
 NEXUS_URL = os.getenv("NEXUS_URL", "http://localhost:8081").rstrip("/")
 NEXUS_ADMIN_PASSWORD = os.getenv("NEXUS_ADMIN_PASSWORD", "")
 NEXUS_DOCKER_HOSTED = os.getenv("NEXUS_DOCKER_HOSTED", "localhost:5000")
+NEXUS_DOCKER_PROXY = os.getenv("NEXUS_DOCKER_PROXY", "localhost:5001")
 NEXUS_DOCKER_GROUP = os.getenv("NEXUS_DOCKER_GROUP", "localhost:5002")
 NEXUS_PYPI_HOSTED = os.getenv("NEXUS_PYPI_HOSTED", "pypi-hosted")
 NEXUS_APT_HOSTED = os.getenv("NEXUS_APT_HOSTED", "apt-internal-hosted")
 NEXUS_RAW_OFFLINE_BUNDLES = os.getenv("NEXUS_RAW_OFFLINE_BUNDLES", "raw-offline-bundles")
-NEXUS_FIREWALL_HELPER_IMAGE = os.getenv("NEXUS_FIREWALL_HELPER_IMAGE", "alpine:3.20")
+_FIREWALL_HELPER_IMAGE = os.getenv("NEXUS_FIREWALL_HELPER_IMAGE", "").strip()
+NEXUS_FIREWALL_HELPER_IMAGE = PORTAL_IMAGE if not _FIREWALL_HELPER_IMAGE or _FIREWALL_HELPER_IMAGE == "alpine" or _FIREWALL_HELPER_IMAGE.startswith("alpine:") else _FIREWALL_HELPER_IMAGE
 NEXUS_PROTECTED_PORTS = [int(x) for x in os.getenv("NEXUS_PROTECTED_PORTS", "8081,5000,5001,5002").split(",") if x.strip()]
 
 PYTHON2_DOCKER_IMAGE = os.getenv("PYTHON2_DOCKER_IMAGE", "python:2.7-slim")
@@ -71,6 +74,10 @@ PORTAL_BLOCK_UNSAFE_APT = os.getenv("PORTAL_BLOCK_UNSAFE_APT", "true").lower() =
 PORTAL_REQUIRE_SECURITY_GATE = os.getenv("PORTAL_REQUIRE_SECURITY_GATE", "true").lower() == "true"
 PORTAL_MIN_FREE_DISK_MB = int(os.getenv("PORTAL_MIN_FREE_DISK_MB", "2048"))
 PORTAL_CLEANUP_KEEP_DAYS = int(os.getenv("PORTAL_CLEANUP_KEEP_DAYS", "14"))
+PORTAL_ALLOW_PUBLIC_DOCKER_FALLBACK = os.getenv("PORTAL_ALLOW_PUBLIC_DOCKER_FALLBACK", "false").lower() == "true"
+PORTAL_ENFORCE_FIREWALL_ON_STARTUP = os.getenv("PORTAL_ENFORCE_FIREWALL_ON_STARTUP", "true").lower() == "true"
+
+DOCKER_HUB_REGISTRIES = {"docker.io", "index.docker.io", "registry-1.docker.io"}
 
 COOKIE_NAME = "airgap_portal_session"
 CSRF_COOKIE_NAME = "airgap_portal_csrf"
@@ -581,9 +588,11 @@ def validate_permissions(permissions: list[str]) -> list[str]:
 
 def validate_cidr(cidr: str) -> str:
     try:
-        return str(ipaddress.ip_network(cidr.strip(), strict=False))
+        network = ipaddress.ip_network(cidr.strip(), strict=False)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid IP address or CIDR: {cidr}") from exc
+
+    return str(network)
 
 
 def validate_principal_groups(group_ids: list[str], enabled: bool, known_groups: set[str]) -> list[str]:
@@ -914,12 +923,31 @@ def sync_nexus_principal(conn, principal_id: str, password: str | None = None) -
     return result
 
 
-def docker_login_hosted(job_id: str) -> None:
+def normalize_registry_value(value: str) -> str:
+    registry = value.strip().rstrip("/")
+    if registry.startswith("http://"):
+        registry = registry[len("http://"):]
+    elif registry.startswith("https://"):
+        registry = registry[len("https://"):]
+    return registry.split("/", 1)[0]
+
+
+def nexus_docker_registries() -> set[str]:
+    return {
+        normalize_registry_value(NEXUS_DOCKER_HOSTED),
+        normalize_registry_value(NEXUS_DOCKER_PROXY),
+        normalize_registry_value(NEXUS_DOCKER_GROUP),
+    }
+
+
+def docker_login_registry(registry: str, job_id: str, logger: Callable[[str, str, str], None]) -> None:
     if not NEXUS_ADMIN_PASSWORD:
         raise RuntimeError("NEXUS_ADMIN_PASSWORD is not configured.")
-    log_publish(job_id, "INFO", f"Logging in to Docker registry {NEXUS_DOCKER_HOSTED}")
+
+    registry = normalize_registry_value(registry)
+    logger(job_id, "INFO", f"Logging in to Docker registry {registry}")
     proc = subprocess.run(
-        ["docker", "login", NEXUS_DOCKER_HOSTED, "-u", "admin", "--password-stdin"],
+        ["docker", "login", registry, "-u", "admin", "--password-stdin"],
         input=NEXUS_ADMIN_PASSWORD,
         text=True,
         stdout=subprocess.PIPE,
@@ -928,9 +956,17 @@ def docker_login_hosted(job_id: str) -> None:
     )
     for line in proc.stdout.splitlines():
         if line.strip():
-            log_publish(job_id, "INFO", line.strip())
+            logger(job_id, "INFO", line.strip())
     if proc.returncode != 0:
-        raise RuntimeError(f"Docker login failed for {NEXUS_DOCKER_HOSTED}")
+        raise RuntimeError(f"Docker login failed for {registry}")
+
+
+def docker_login_hosted(job_id: str) -> None:
+    docker_login_registry(NEXUS_DOCKER_HOSTED, job_id, log_publish)
+
+
+def docker_login_group_for_job(job_id: str) -> None:
+    docker_login_registry(NEXUS_DOCKER_GROUP, job_id, log_job)
 
 
 def image_ref_name(ref: str) -> str:
@@ -940,14 +976,64 @@ def image_ref_name(ref: str) -> str:
     return ref
 
 
+def split_image_registry(ref: str) -> tuple[str | None, str]:
+    ref = image_ref_name(ref)
+    first, sep, rest = ref.partition("/")
+    if sep and ("." in first or ":" in first or first == "localhost"):
+        return normalize_registry_value(first), rest
+    return None, ref
+
+
+def image_name_without_tag_or_digest(path: str) -> str:
+    name = path.split("@", 1)[0]
+    last_slash = name.rfind("/")
+    tag_colon = name.rfind(":")
+    if tag_colon > last_slash:
+        name = name[:tag_colon]
+    return name
+
+
+def docker_hub_repository_path(path: str) -> str:
+    if "/" not in image_name_without_tag_or_digest(path):
+        return f"library/{path}"
+    return path
+
+
+def nexus_repository_path(image: str) -> str:
+    registry, remainder = split_image_registry(image)
+
+    if registry is None:
+        return docker_hub_repository_path(remainder)
+
+    if registry in nexus_docker_registries():
+        return remainder
+
+    if registry in DOCKER_HUB_REGISTRIES:
+        return docker_hub_repository_path(remainder)
+
+    return f"{registry}/{remainder}"
+
+
+def docker_registry_ref(registry: str, image: str) -> str:
+    return f"{normalize_registry_value(registry)}/{nexus_repository_path(image)}"
+
+
 def hosted_image_ref(image: str) -> str:
     image = image_ref_name(image)
-    registry = NEXUS_DOCKER_HOSTED.rstrip("/")
-    if image.startswith(registry + "/"):
+    hosted_registry = normalize_registry_value(NEXUS_DOCKER_HOSTED)
+    image_registry, _ = split_image_registry(image)
+    if image_registry == hosted_registry:
         return image
-    if "/" not in image.split("/")[0] and "/" not in image.split(":")[0]:
-        return f"{registry}/library/{image}"
-    return f"{registry}/{image}"
+    return docker_registry_ref(hosted_registry, image)
+
+
+def group_image_ref(image: str) -> str:
+    image = image_ref_name(image)
+    group_registry = normalize_registry_value(NEXUS_DOCKER_GROUP)
+    image_registry, _ = split_image_registry(image)
+    if image_registry == group_registry:
+        return image
+    return docker_registry_ref(group_registry, image)
 
 
 def docker_image_exists_locally(image: str) -> bool:
@@ -1189,14 +1275,24 @@ def run_docker_publish_job(job_id: str, payload: dict[str, Any], user: str) -> N
         if docker_image_exists_in_nexus(target_ref, job_id):
             log_publish(job_id, "INFO", f"Image already exists in Nexus: {target_ref}")
         else:
+            source_ref = source
             if docker_image_exists_locally(source):
                 log_publish(job_id, "INFO", f"Using local Docker image: {source}")
             else:
-                log_publish(job_id, "INFO", f"Image not local. Pulling from Docker Hub/source registry: {source}")
-                run_publish_cmd(["docker", "pull", source], job_id, timeout=900)
+                docker_login_registry(NEXUS_DOCKER_GROUP, job_id, log_publish)
+                for candidate in normalize_docker_pull_candidates(source):
+                    try:
+                        log_publish(job_id, "INFO", f"Image not local. Pulling through Nexus: {candidate}")
+                        run_publish_cmd(["docker", "pull", candidate], job_id, timeout=900)
+                        source_ref = candidate
+                        break
+                    except Exception as exc:
+                        log_publish(job_id, "WARN", f"Pull candidate failed: {candidate} -> {exc}")
+                else:
+                    raise RuntimeError(f"Could not pull Docker image from Nexus: {source}")
 
             docker_login_hosted(job_id)
-            run_publish_cmd(["docker", "tag", source, target_ref], job_id, timeout=120)
+            run_publish_cmd(["docker", "tag", source_ref, target_ref], job_id, timeout=120)
             run_publish_cmd(["docker", "push", target_ref], job_id, timeout=1800)
 
         update_publish_job(job_id, status="SUCCESS", target=target_ref, finished_at=utc_now())
@@ -1554,14 +1650,12 @@ def normalize_docker_pull_candidates(image: str) -> list[str]:
     if not image:
         return []
 
-    candidates: list[str] = []
+    image_registry, _ = split_image_registry(image)
+    if image_registry in nexus_docker_registries():
+        return [image]
 
-    if image.startswith("localhost:") or image.startswith("nexus.local:") or "/" in image.split("/")[0]:
-        candidates.append(image)
-    else:
-        candidates.append(f"{NEXUS_DOCKER_GROUP}/{image}")
-        if "/" not in image.split(":")[0]:
-            candidates.append(f"{NEXUS_DOCKER_GROUP}/library/{image}")
+    candidates = [group_image_ref(image)]
+    if PORTAL_ALLOW_PUBLIC_DOCKER_FALLBACK:
         candidates.append(image)
 
     return list(dict.fromkeys(candidates))
@@ -1926,6 +2020,7 @@ def create_bundle(job_id: str, spec: BundleSpec, user: str, security: dict[str, 
 
     if selected_docker_images:
         log_job(job_id, "INFO", "Preparing Docker images")
+        docker_login_group_for_job(job_id)
 
         for image in selected_docker_images:
             pulled = False
@@ -2609,56 +2704,60 @@ def active_trusted_cidrs() -> list[str]:
 
 def firewall_script(cidrs: list[str]) -> str:
     ports = ",".join(str(x) for x in NEXUS_PROTECTED_PORTS)
+    ipv4_cidrs = [cidr for cidr in cidrs if ipaddress.ip_network(cidr, strict=False).version == 4]
+    ipv6_cidrs = [cidr for cidr in cidrs if ipaddress.ip_network(cidr, strict=False).version == 6]
     lines = [
         "set -eu",
-        "CHAIN=PORTAL_NEXUS_ACL",
-        "iptables -N $CHAIN 2>/dev/null || true",
-        "iptables -F $CHAIN",
+        "CHAIN4=PORTAL_NEXUS_ACL",
+        "CHAIN6=PORTAL_NEXUS_ACL6",
+        f"PORTS={shlex.quote(ports)}",
+        "command -v iptables >/dev/null 2>&1 || { echo 'iptables is required in the firewall helper image' >&2; exit 127; }",
+        "command -v ip6tables >/dev/null 2>&1 || { echo 'ip6tables is required in the firewall helper image' >&2; exit 127; }",
+        "ipt() { iptables -w \"$@\"; }",
+        "ip6t() { ip6tables -w \"$@\"; }",
+        "ipt -N \"$CHAIN4\" 2>/dev/null || true",
+        "ipt -F \"$CHAIN4\"",
+        "ipt -A \"$CHAIN4\" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN",
+        "ipt -A \"$CHAIN4\" -i lo -j RETURN",
+        "ipt -A \"$CHAIN4\" -i docker0 -j RETURN",
+        "ipt -A \"$CHAIN4\" -i br+ -j RETURN",
     ]
 
-    for cidr in cidrs:
-        lines.append(f"iptables -A $CHAIN -p tcp -m multiport --dports {ports} -s {shlex.quote(cidr)} -j RETURN")
+    for cidr in ipv4_cidrs:
+        lines.append(f"ipt -A \"$CHAIN4\" -p tcp -m multiport --dports \"$PORTS\" -s {shlex.quote(cidr)} -j RETURN")
 
     lines.extend([
-        f"iptables -A $CHAIN -p tcp -m multiport --dports {ports} -j DROP",
-        "iptables -C DOCKER-USER -j $CHAIN 2>/dev/null || iptables -I DOCKER-USER 1 -j $CHAIN",
-        "iptables -S $CHAIN",
+        "ipt -A \"$CHAIN4\" -p tcp -m multiport --dports \"$PORTS\" -j DROP",
+        "ipt -A \"$CHAIN4\" -j RETURN",
+        "ipt -N DOCKER-USER 2>/dev/null || true",
+        "while ipt -D INPUT -j \"$CHAIN4\" 2>/dev/null; do :; done",
+        "while ipt -D DOCKER-USER -j \"$CHAIN4\" 2>/dev/null; do :; done",
+        "ipt -I INPUT 1 -j \"$CHAIN4\"",
+        "ipt -I DOCKER-USER 1 -j \"$CHAIN4\"",
+        "ip6t -N \"$CHAIN6\" 2>/dev/null || true",
+        "ip6t -F \"$CHAIN6\"",
+        "ip6t -A \"$CHAIN6\" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN",
+        "ip6t -A \"$CHAIN6\" -i lo -j RETURN",
+        "ip6t -A \"$CHAIN6\" -i docker0 -j RETURN",
+        "ip6t -A \"$CHAIN6\" -i br+ -j RETURN",
+    ])
+    for cidr in ipv6_cidrs:
+        lines.append(f"ip6t -A \"$CHAIN6\" -p tcp -m multiport --dports \"$PORTS\" -s {shlex.quote(cidr)} -j RETURN")
+    lines.extend([
+        "ip6t -A \"$CHAIN6\" -p tcp -m multiport --dports \"$PORTS\" -j DROP",
+        "ip6t -A \"$CHAIN6\" -j RETURN",
+        "ip6t -N DOCKER-USER 2>/dev/null || true",
+        "while ip6t -D INPUT -j \"$CHAIN6\" 2>/dev/null; do :; done",
+        "while ip6t -D DOCKER-USER -j \"$CHAIN6\" 2>/dev/null; do :; done",
+        "ip6t -I INPUT 1 -j \"$CHAIN6\"",
+        "ip6t -I DOCKER-USER 1 -j \"$CHAIN6\"",
+        "ipt -S \"$CHAIN4\"",
+        "ip6t -S \"$CHAIN6\"",
     ])
     return "\n".join(lines)
 
 
-def apply_firewall_policy(actor: str) -> dict[str, Any]:
-    cidrs = active_trusted_cidrs()
-    if not cidrs:
-        raise HTTPException(status_code=400, detail="At least one enabled trusted IP/CIDR is required before applying firewall policy.")
-
-    script = firewall_script(cidrs)
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        "--privileged",
-        "--network",
-        "host",
-        NEXUS_FIREWALL_HELPER_IMAGE,
-        "sh",
-        "-lc",
-        "command -v iptables >/dev/null 2>&1 || (apk add --no-cache iptables >/dev/null); " + script,
-    ]
-
-    started = utc_now()
-    output = run_local_cmd(cmd, timeout=120)
-    result = {
-        "status": "APPLIED",
-        "applied_at": utc_now(),
-        "started_at": started,
-        "applied_by": actor,
-        "trusted_cidrs": cidrs,
-        "protected_ports": NEXUS_PROTECTED_PORTS,
-        "helper_image": NEXUS_FIREWALL_HELPER_IMAGE,
-        "output": output[-4000:],
-    }
-
+def save_firewall_status(result: dict[str, Any], actor: str) -> None:
     with db_conn() as conn:
         conn.execute(
             """
@@ -2672,6 +2771,42 @@ def apply_firewall_policy(actor: str) -> dict[str, Any]:
             ("last_status", json.dumps(result), utc_now(), actor),
         )
 
+
+def apply_firewall_policy(actor: str) -> dict[str, Any]:
+    cidrs = active_trusted_cidrs()
+    script = firewall_script(cidrs)
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "--pull=never",
+        "--cap-add",
+        "NET_ADMIN",
+        "--cap-add",
+        "NET_RAW",
+        "--network",
+        "host",
+        NEXUS_FIREWALL_HELPER_IMAGE,
+        "sh",
+        "-lc",
+        script,
+    ]
+
+    started = utc_now()
+    output = run_local_cmd(cmd, timeout=120)
+    result = {
+        "status": "APPLIED",
+        "mode": "DEFAULT_DENY",
+        "applied_at": utc_now(),
+        "started_at": started,
+        "applied_by": actor,
+        "trusted_cidrs": cidrs,
+        "protected_ports": NEXUS_PROTECTED_PORTS,
+        "helper_image": NEXUS_FIREWALL_HELPER_IMAGE,
+        "output": output[-4000:],
+    }
+
+    save_firewall_status(result, actor)
     return result
 
 
@@ -2682,6 +2817,27 @@ def apply_firewall_policy(actor: str) -> dict[str, Any]:
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    try:
+        disable_nexus_anonymous()
+    except Exception as exc:
+        print(f"WARN: Could not disable Nexus anonymous access at startup: {getattr(exc, 'detail', exc)}", flush=True)
+
+    if PORTAL_ENFORCE_FIREWALL_ON_STARTUP:
+        try:
+            apply_firewall_policy("system-startup")
+        except Exception as exc:
+            result = {
+                "status": "FAILED",
+                "mode": "DEFAULT_DENY",
+                "applied_at": utc_now(),
+                "applied_by": "system-startup",
+                "trusted_cidrs": active_trusted_cidrs(),
+                "protected_ports": NEXUS_PROTECTED_PORTS,
+                "helper_image": NEXUS_FIREWALL_HELPER_IMAGE,
+                "error": str(getattr(exc, "detail", exc)),
+            }
+            save_firewall_status(result, "system-startup")
+            print(f"WARN: Could not apply Nexus firewall policy at startup: {result['error']}", flush=True)
 
 
 @app.on_event("shutdown")
